@@ -12,7 +12,7 @@ const LogoutButton = () => {
         apiService.logout()
     }
     return (
-        <div className={"absolute top-2 left-2 w-32"}>
+        <div className={" w-32"}>
             <Button onClick={logout} text={"Logout"}/>
         </div>
     );

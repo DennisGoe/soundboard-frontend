@@ -5,16 +5,11 @@ import Tile from "./Tile";
 
 const Board = () => {
     const board = useBoardData();
-
     return (
-        <div className={"flex flex-col gap-y-1"}>
-            {board.map(row => {
+        <div className={"flex flex-wrap justify-center max-w-screen px-2 gap-1"}>
+            {board.map(sound => {
                 return (
-                    <div className={"flex gap-x-1"}>
-                        {row.map((entry, index) => {
-                            return <Tile entry={entry} key={index}/>;
-                        })}
-                    </div>
+                    <Tile key={sound._id} sound={sound}/>
                 );
             })}
 

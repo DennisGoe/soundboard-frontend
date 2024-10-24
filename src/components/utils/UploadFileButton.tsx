@@ -2,9 +2,11 @@ import React, { useRef } from 'react';
 import Button from "./Button";
 import apiService from "../../modules/api";
 
-interface UploadFileButtonProps {}
+interface UploadFileButtonProps {
+    handleOpenFileUpload:(value: File |undefined) =>void
+}
 
-const UploadFileButton = ({}: UploadFileButtonProps) => {
+const UploadFileButton = ({handleOpenFileUpload}: UploadFileButtonProps) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleButtonClick = () => {
@@ -15,16 +17,7 @@ const UploadFileButton = ({}: UploadFileButtonProps) => {
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file) {
-            try {
-                console.log("UPLOADING");
-                // Call the uploadFile function from apiService
-                const response = await apiService.uploadFile(file, "eier wir brauchen eier");
-                console.log('File uploaded successfully:', response);
-            } catch (error) {
-                console.error('Error uploading file:', error);
-            }
-        }
+        handleOpenFileUpload(file)
     };
 
     return (

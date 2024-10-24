@@ -14,6 +14,12 @@ interface AuthResponse {
     msg?: string;
 }
 
+export interface SoundSchema {
+    _id: string;
+    url: string;
+    name: string
+}
+
 // Example of another potential data model
 interface UserData {
     id: string;
@@ -115,11 +121,9 @@ const apiService = {
             })
         );
     },
-
-    // Example of fetching user data (assuming there's an endpoint)
-    getUser: (userId: string): Promise<UserData> => {
+    getAllFiles: async (): Promise<SoundSchema[]> => {
         return handleRequest(
-            api.get<UserData>(`/users/${userId}`)
+            api.get<{ _id: string; url: string; name: string }[]>('/api/files/all')
         );
     },
 };
