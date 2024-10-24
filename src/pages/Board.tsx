@@ -17,6 +17,7 @@ const Board = () => {
                     </div>
                 );
             })}
+
         </div>
     );
 };

@@ -1,15 +1,18 @@
 import React from "react";
-import useBoardData from "../hooks/useBoardData";
 import Board from "./Board";
+import LogoutButton from "../components/LogoutButton";
+import UploadFileButton from "../components/utils/UploadFileButton";
 
-interface BoardPageProps {
-}
 
-const BoardPage = ({}: BoardPageProps) => {
+const BoardPage = () => {
     return (
         <div
             className={"w-full h-screen flex items-center justify-center bg-neutral-900 "}>
-            <Board/>
+            <LogoutButton/>
+            <div className={"flex flex-col gap-y-5"}>
+                <Board/>
+                <UploadFileButton/>
+            </div>
         </div>
     );
 };

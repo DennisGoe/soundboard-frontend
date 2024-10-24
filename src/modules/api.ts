@@ -1,5 +1,7 @@
 // src/apiService.ts
 import axios, { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig, AxiosHeaders } from 'axios';
+import {ToastManager} from "./notifications/ToastService";
+import {FailureToastTemplate} from "./notifications/ToastTemplates";
 
 // Define user-related types
 interface UserCredentials {
@@ -45,6 +47,10 @@ api.interceptors.request.use(
                 config.headers = updatedHeaders;
             }
         }
+        // else {
+        //     ToastManager.show({...FailureToastTemplate, translationKey:"BITTE EINLOGGEN"})
+        //     window.location.href = "/"
+        // }
         return config;
     },
     (error) => {
@@ -93,6 +99,21 @@ const apiService = {
     logout: (): void => {
         // Remove the token from localStorage
         localStorage.removeItem('token');
+    },
+
+    uploadFile: async (file: File, name: string): Promise<{ _id: string; url: string; name: string }> => {
+        const formData = new FormData();
+        formData.append('mp3', file); // The backend expects the field name to be 'mp3'
+        formData.append('name', name); // Append the custom name to the form data
+
+        // Make the API request
+        return handleRequest(
+            api.post<{ _id: string; url: string; name: string }>('/api/files/upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            })
+        );
     },
 
     // Example of fetching user data (assuming there's an endpoint)
