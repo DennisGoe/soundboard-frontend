@@ -25,7 +25,9 @@ interface UserData {
 }
 
 // Base URL for your API
-export const BASE_URL = 'https://soundboard-backend.onrender.com';
+const url = 'https://soundboard-backend.onrender.com'
+// const url = 'http://localhost:3000'
+export const BASE_URL = url;
 
 // Create an axios instance
 const api = axios.create({
