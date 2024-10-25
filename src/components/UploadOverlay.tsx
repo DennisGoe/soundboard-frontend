@@ -1,9 +1,9 @@
 import React, {useState} from "react";
-import apiService from "../../modules/api";
-import {ToastManager} from "../../modules/notifications/ToastService";
-import {SuccessToastTemplate} from "../../modules/notifications/ToastTemplates";
-import StandardInput from "./StandardInput";
-import Button from "./Button";
+import apiService from "../modules/api";
+import {ToastManager} from "../modules/notifications/ToastService";
+import {SuccessToastTemplate} from "../modules/notifications/ToastTemplates";
+import StandardInput from "./utils/StandardInput";
+import Button from "./utils/Button";
 
 interface UploadOverlayProps {
     file: File | undefined;

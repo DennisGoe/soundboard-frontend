@@ -37,9 +37,9 @@ const LoginPage = ({}: LoginPageProps) => {
 
     return (
         <div
-            className={"w-full h-screen flex items-center justify-center flex-col bg-gradient-to-br from-white to-blue-500"}>
+            className={"w-full h-screen flex items-center justify-center flex-col bg-neutral-900"}>
             <div className={"h-1/3 w-80 p-5 flex justify-center items-center flex-col gap-y-5"}>
-                <span className={"font-bold text-xl"}>Geiles Soundboard</span>
+                <span className={"font-bold text-xl text-neutral-100"}>DND Soundboard</span>
                 <StandardInput value={userName}
                                placeholder={"Username"}
                                setValue={setUserName}/>

@@ -1,7 +1,7 @@
 import React, {useState} from "react";
-import Board from "./Board";
-import UploadOverlay from "../components/utils/UploadOverlay";
-import Options from "../components/utils/Options";
+import Board from "../components/Board";
+import UploadOverlay from "../components/UploadOverlay";
+import Options from "../components/Options";
 
 
 const BoardPage = () => {
