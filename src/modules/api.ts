@@ -1,7 +1,5 @@
-// src/apiService.ts
-import axios, { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig, AxiosHeaders } from 'axios';
-import {ToastManager} from "./notifications/ToastService";
-import {FailureToastTemplate} from "./notifications/ToastTemplates";
+import axios, {  AxiosResponse, InternalAxiosRequestConfig, AxiosHeaders } from 'axios';
+
 
 // Define user-related types
 interface UserCredentials {

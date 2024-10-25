@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import apiService, {BASE_URL, SoundSchema} from "../modules/api";
-import { io } from "socket.io-client";
+import apiService, { SoundSchema} from "../modules/api";
+import socket from "../modules/notifications/socket";
 
-const socket = io(BASE_URL);
 
 const useBoardData = () => {
     const [allSounds, setAllSounds] = useState<SoundSchema[]>([]);

@@ -1,7 +1,12 @@
 import { io, Socket } from 'socket.io-client';
+import {BASE_URL} from "../api";
 
-const socket: Socket = io('http://localhost:3000', {
+const socket = io(BASE_URL, {
     transports: ['websocket'],
+    secure: true,
+    reconnection: true,
+    reconnectionAttempts: 5,
+    timeout: 10000,
 });
 
 export default socket;
