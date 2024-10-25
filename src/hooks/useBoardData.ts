@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import apiService, { SoundSchema } from "../modules/api";
+import apiService, {BASE_URL, SoundSchema} from "../modules/api";
 import { io } from "socket.io-client";
 
-const socket = io('http://localhost:3000'); // Connect to the backend server
+const socket = io(BASE_URL);
 
 const useBoardData = () => {
     const [allSounds, setAllSounds] = useState<SoundSchema[]>([]);
