@@ -15,7 +15,7 @@ const BoardPage = () => {
         <div
             className={"w-full h-screen flex items-center justify-center bg-neutral-900 "}>
             <Options handleFileChange={handleFileChange}/>
-            <div className={"flex flex-col w-full gap-y-5"}>
+            <div className={"flex flex-col w-full gap-y-5 h-full"}>
                 <Board/>
             </div>
             {
