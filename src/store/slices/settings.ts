@@ -4,8 +4,8 @@ interface settingsInterface {
     volume: number
 }
 
-const initialState = {
-    volume: Number(localStorage.getItem("volume")) ?? 50
+const initialState: settingsInterface = {
+    volume: Number(localStorage.getItem("volume") ?? 25)
 };
 
 
