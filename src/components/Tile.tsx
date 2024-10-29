@@ -1,22 +1,34 @@
-import React, { useEffect } from "react";
-import { SoundSchema } from "../modules/api";
+import React, {useEffect, useState} from "react";
+import apiService, {SoundSchema} from "../modules/api";
 import socket from "../modules/notifications/socket";
-import { useSelector } from "react-redux";
+import {useSelector} from "react-redux";
+import {Icon} from "./utils/Icon";
+import {ToastManager} from "../modules/notifications/ToastService";
+import {FailureToastTemplate, SuccessToastTemplate} from "../modules/notifications/ToastTemplates";
 
 interface TileProps {
     sound: SoundSchema;
 }
 
-const Tile = ({ sound }: TileProps) => {
-    // Properly use useSelector to get the volume from the Redux store
+const Tile = ({sound}: TileProps) => {
+    const [showDelete, setShowDelete] = useState(false);
     const volume = useSelector((state: any) => state.settings?.volume);
 
     const playSound = () => {
         socket.emit("playSound", sound);
     };
 
+    const handleDelete = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        try {
+            await apiService.deleteFile(sound._id);
+            ToastManager.show({...SuccessToastTemplate})
+        } catch (e) {
+            ToastManager.show({...FailureToastTemplate})
+        }
+    };
+
     useEffect(() => {
-        // Register socket event listener for "playSound"
         socket.on("playSound", (data: SoundSchema) => {
             if (data._id === sound._id) {
                 const audio = new Audio(data.url);
@@ -25,7 +37,6 @@ const Tile = ({ sound }: TileProps) => {
             }
         });
 
-        // Cleanup the socket event listener on component unmount
         return () => {
             socket.off("playSound");
         };
@@ -34,9 +45,19 @@ const Tile = ({ sound }: TileProps) => {
     return (
         <div
             onClick={playSound}
-            className={"bg-neutral-800 p-2 w-24 break-words aspect-square flex items-center justify-center rounded-sm cursor-pointer border-neutral-700 border-[1px] text-white hover:bg-neutral-700"}
+            onMouseEnter={() => setShowDelete(true)}
+            onMouseLeave={() => setShowDelete(false)}
+            className={"bg-neutral-800 relative p-2 w-24 h-24 break-words aspect-square flex items-center justify-center rounded-sm cursor-pointer border-neutral-700 border-[1px] text-white hover:bg-neutral-700"}
         >
             <span className={"break-words text-sm max-w-full"}>{sound?.name}</span>
+            {
+                showDelete &&
+                <div className={"absolute top-0 right-0 text-red-600 hover:scale-125"}>
+                    <Icon icon={"delete"}
+                          onClick={e => handleDelete(e)}
+                          className={"text-[15pt]"}/>
+                </div>
+            }
         </div>
     );
 };

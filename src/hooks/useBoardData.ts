@@ -18,8 +18,9 @@ const useBoardData = () => {
     useEffect(() => {
         fetchData();
 
-        socket.on('updatedSoundboard', (newSound: SoundSchema) => {
-            setAllSounds((prevSounds) => [...prevSounds, newSound]);
+        socket.on('updatedSoundboard', async(newSound: SoundSchema) => {
+            await fetchData()
+            // setAllSounds((prevSounds) => [...prevSounds, newSound]);
         });
 
         return () => {

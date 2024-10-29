@@ -103,6 +103,12 @@ const apiService = {
             })
         );
     },
+
+    deleteFile: async (fileId: string): Promise<{ msg: string }> => {
+        return handleRequest(
+            api.delete<{ msg: string }>(`/api/files/delete/${fileId}`)
+        );
+    },
     getAllFiles: async (): Promise<SoundSchema[]> => {
         return handleRequest(
             api.get<{ _id: string; url: string; name: string }[]>('/api/files/all')
