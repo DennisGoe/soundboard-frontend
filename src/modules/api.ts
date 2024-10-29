@@ -1,5 +1,4 @@
-import axios, {  AxiosResponse, InternalAxiosRequestConfig, AxiosHeaders } from 'axios';
-
+import axios, { AxiosResponse, InternalAxiosRequestConfig, AxiosHeaders } from 'axios';
 
 interface UserCredentials {
     username: string;
@@ -14,7 +13,7 @@ interface AuthResponse {
 export interface SoundSchema {
     _id: string;
     url: string;
-    name: string
+    name: string;
 }
 
 interface UserData {
@@ -22,8 +21,8 @@ interface UserData {
     username: string;
 }
 
-const url = 'https://soundboard-backend.onrender.com'
-// const url = 'http://localhost:3000'
+// const url = 'https://soundboard-backend.onrender.com';
+const url = 'http://localhost:3000';
 export const BASE_URL = url;
 
 const api = axios.create({
@@ -68,23 +67,27 @@ const handleRequest = async <T>(request: Promise<AxiosResponse<T>>): Promise<T> 
 
 const apiService = {
     register: (credentials: UserCredentials): Promise<void> => {
-        return handleRequest(
-            api.post<void>('/api/auth/register', credentials)
-        );
+        return handleRequest(api.post<void>('/api/auth/register', credentials));
     },
 
     login: async (credentials: UserCredentials): Promise<AuthResponse> => {
-        const response = await handleRequest(
-            api.post<AuthResponse>('/api/auth/login', credentials)
-        );
+        const response = await handleRequest(api.post<AuthResponse>('/api/auth/login', credentials));
         if (response.token) {
             localStorage.setItem('token', response.token);
         }
-
         return response;
     },
 
-    // Logout
+    changeFavourites: async (soundId: string): Promise<{ favourites: string[] }> => {
+        return handleRequest(
+            api.post<{ favourites: string[] }>(`/api/favorites/changeFavourite/${soundId}`)
+        );
+    },
+
+    getFavourites: async (): Promise<{ favourites: SoundSchema[] }> => {
+        return handleRequest(api.get<{ favourites: SoundSchema[] }>('/api/favorites/getFavourites'));
+    },
+
     logout: (): void => {
         localStorage.removeItem('token');
     },
@@ -93,7 +96,6 @@ const apiService = {
         const formData = new FormData();
         formData.append('mp3', file);
         formData.append('name', name);
-
 
         return handleRequest(
             api.post<{ _id: string; url: string; name: string }>('/api/files/upload', formData, {
@@ -105,14 +107,11 @@ const apiService = {
     },
 
     deleteFile: async (fileId: string): Promise<{ msg: string }> => {
-        return handleRequest(
-            api.delete<{ msg: string }>(`/api/files/delete/${fileId}`)
-        );
+        return handleRequest(api.delete<{ msg: string }>(`/api/files/delete/${fileId}`));
     },
+
     getAllFiles: async (): Promise<SoundSchema[]> => {
-        return handleRequest(
-            api.get<{ _id: string; url: string; name: string }[]>('/api/files/all')
-        );
+        return handleRequest(api.get<SoundSchema[]>('/api/files/all'));
     },
 };
 

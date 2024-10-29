@@ -1,15 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import apiService, { SoundSchema} from "../modules/api";
 import socket from "../modules/notifications/socket";
+import store from "../store/store";
+import boardSlice from "../store/slices/board";
 
 
-const useBoardData = () => {
-    const [allSounds, setAllSounds] = useState<SoundSchema[]>([]);
+const useBoardListener = () => {
+
 
     const fetchData = async () => {
         try {
             const sounds = await apiService.getAllFiles();
-            setAllSounds(sounds);
+            store.dispatch(boardSlice.actions.setSounds(sounds))
         } catch (error) {
             console.error('Error fetching sounds:', error);
         }
@@ -20,7 +22,6 @@ const useBoardData = () => {
 
         socket.on('updatedSoundboard', async(newSound: SoundSchema) => {
             await fetchData()
-            // setAllSounds((prevSounds) => [...prevSounds, newSound]);
         });
 
         return () => {
@@ -28,7 +29,7 @@ const useBoardData = () => {
         };
     }, []);
 
-    return allSounds;
+
 };
 
-export default useBoardData;
+export default useBoardListener;

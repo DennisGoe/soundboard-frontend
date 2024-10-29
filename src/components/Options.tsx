@@ -11,7 +11,7 @@ interface OptionsProps {
 const Options = ({handleFileChange}: OptionsProps) => {
     const volume = useSelector(() => store.getState().settings?.volume)
     return (
-        <div className={"absolute top-2 left-2 gap-x-4 flex items-center"}>
+        <div className={" gap-x-4 flex items-start w-full py-2"}>
             <LogoutButton/>
             <div className={"w-48"}>
                 <UploadFileButton handleOpenFileUpload={handleFileChange}/>
