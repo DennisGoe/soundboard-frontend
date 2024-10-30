@@ -13,9 +13,9 @@ const FavouriteListEntry = ({favourite}:FavouriteListEntryProps) => {
 
     }
     return (
-        <div className={"flex items-center w-full hover:bg-neutral-600"}
+        <div className={"flex items-center w-full p-2 cursor-pointer gap-x-3 text-white hover:bg-neutral-700"}
         onClick={handleClick}>
-            <Icon icon={"star"} className={"text-yellow-300"}/>
+            <Icon icon={"kid_star"} className={"text-yellow-300 text-sm"}/>
             <span className={""}>{favourite.name}</span>
         </div>
     );

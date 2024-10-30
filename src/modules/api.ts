@@ -1,4 +1,6 @@
 import axios, { AxiosResponse, InternalAxiosRequestConfig, AxiosHeaders } from 'axios';
+import store from "../store/store";
+import authSlice from "../store/slices/auth";
 
 interface UserCredentials {
     username: string;
@@ -21,8 +23,8 @@ interface UserData {
     username: string;
 }
 
-// const url = 'https://soundboard-backend.onrender.com';
-const url = 'http://localhost:3000';
+const url = 'https://soundboard-backend.onrender.com';
+// const url = 'http://localhost:3000';
 export const BASE_URL = url;
 
 const api = axios.create({
@@ -73,7 +75,7 @@ const apiService = {
     login: async (credentials: UserCredentials): Promise<AuthResponse> => {
         const response = await handleRequest(api.post<AuthResponse>('/api/auth/login', credentials));
         if (response.token) {
-            localStorage.setItem('token', response.token);
+            store.dispatch(authSlice.actions.setToken(response.token))
         }
         return response;
     },
