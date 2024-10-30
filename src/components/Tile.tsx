@@ -1,7 +1,6 @@
-import React, {useEffect, useState} from "react";
+import React, {useState} from "react";
 import apiService, {SoundSchema} from "../modules/api";
 import socket from "../modules/notifications/socket";
-import {useSelector} from "react-redux";
 import {Icon} from "./utils/Icon";
 import {ToastManager} from "../modules/notifications/ToastService";
 import {FailureToastTemplate, SuccessToastTemplate} from "../modules/notifications/ToastTemplates";

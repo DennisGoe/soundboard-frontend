@@ -3,12 +3,14 @@ import {SoundSchema} from "../../modules/api";
 
 interface BoardInterface {
     sounds: SoundSchema[];
-    favourites: SoundSchema[]
+    favourites: SoundSchema[],
+    filter: string
 }
 
 const initialState: BoardInterface = {
     sounds: [],
-    favourites:[]
+    favourites:[],
+    filter:""
 };
 
 
@@ -21,6 +23,9 @@ const boardSlice = createSlice({
         },
         setFavourites(state, action: PayloadAction<SoundSchema[]>){
             state.favourites = action.payload
+        },
+        setFilterValue(state, action: PayloadAction<string>){
+            state.filter = action.payload
         }
     }
 });

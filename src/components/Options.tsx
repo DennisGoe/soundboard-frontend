@@ -4,6 +4,7 @@ import UploadFileButton from "./UploadFileButton";
 import VolumeSlider from "./VolumeSlider";
 import {useSelector} from "react-redux";
 import store from "../store/store";
+import SearchBar from "./SearchBar";
 
 interface OptionsProps {
     handleFileChange: (value : File | undefined) => void
@@ -16,10 +17,13 @@ const Options = ({handleFileChange}: OptionsProps) => {
             <div className={"w-48"}>
                 <UploadFileButton handleOpenFileUpload={handleFileChange}/>
             </div>
-            <div className={"w-72 text-white flex items-center gap-x-2"}>
+            <div className={"w-72 text-white h-full flex items-center gap-x-2"}>
                 <span>Volume:</span>
                 <VolumeSlider/>
                 <span>{volume}%</span>
+            </div>
+            <div className={"h-8 "}>
+            <SearchBar/>
             </div>
         </div>
     );

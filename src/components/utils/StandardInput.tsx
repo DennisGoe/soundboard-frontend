@@ -1,4 +1,5 @@
 import React from "react";
+import {Icon} from "./Icon";
 
 interface StandardInputProps {
     value: string,
@@ -10,11 +11,14 @@ interface StandardInputProps {
 
 const StandardInput = ({value, setValue, password = false, className = "", placeholder = ""}: StandardInputProps) => {
     return (
-        <input className={`${className} w-full h-10  bg-neutral-200 rounded-full pl-10 `}
-               value={value}
-               placeholder={placeholder}
-               type={password ? "password" : "text"}
-               onChange={(e) => setValue(e.target.value)}/>
+        <div className={"h-full w-full flex items-center gap-x-2 ml-10"}>
+            <input className={`${className} w-full h-full bg-neutral-200 rounded-full pl-10 `}
+                   value={value}
+                   placeholder={placeholder}
+                   type={password ? "password" : "text"}
+                   onChange={(e) => setValue(e.target.value)}/>
+            <Icon icon={"search"} className={"text-neutral-100"}/>
+        </div>
     );
 };
 
