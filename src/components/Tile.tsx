@@ -1,10 +1,10 @@
 import React, {useState} from "react";
 import apiService, {SoundSchema} from "../modules/api";
-import socket from "../modules/notifications/socket";
 import {Icon} from "./utils/Icon";
 import {ToastManager} from "../modules/notifications/ToastService";
 import {FailureToastTemplate, SuccessToastTemplate} from "../modules/notifications/ToastTemplates";
 import useIsFavourite from "../hooks/useIsFavourite";
+import {playSound} from "./utils/functions";
 
 interface TileProps {
     sound: SoundSchema;
@@ -14,9 +14,6 @@ const Tile = ({sound}: TileProps) => {
     const [showDelete, setShowDelete] = useState(false);
     const {isFavourite} = useIsFavourite({sound});
 
-    const playSound = () => {
-        socket.emit("playSound", sound);
-    };
 
     const handleDelete = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -35,7 +32,7 @@ const Tile = ({sound}: TileProps) => {
 
     return (
         <div
-            onClick={playSound}
+            onClick={() => playSound(sound)}
             onMouseEnter={() => setShowDelete(true)}
             onMouseLeave={() => setShowDelete(false)}
             className={"bg-neutral-800 relative p-2 w-24 h-24 break-words aspect-square flex items-center justify-center rounded-sm cursor-pointer border-neutral-700 border-[1px] text-white hover:bg-neutral-700"}

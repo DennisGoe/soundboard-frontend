@@ -9,7 +9,7 @@ const Board = () => {
     const filterValue = useSelector(() => store.getState().board?.filter);
 
     const filteredSounds = filterValue
-        ? sounds.filter((sound) => sound.name.includes(filterValue))
+        ? sounds.filter((sound) => sound.name.toLowerCase().includes(filterValue.toLowerCase()))
         : sounds;
 
     return (
