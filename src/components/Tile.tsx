@@ -5,6 +5,7 @@ import {ToastManager} from "../modules/notifications/ToastService";
 import {FailureToastTemplate, SuccessToastTemplate} from "../modules/notifications/ToastTemplates";
 import useIsFavourite from "../hooks/useIsFavourite";
 import {playSound} from "./utils/functions";
+import usePlaySoundListener from "../hooks/usePlaySoundListener";
 
 interface TileProps {
     sound: SoundSchema;
@@ -13,7 +14,7 @@ interface TileProps {
 const Tile = ({sound}: TileProps) => {
     const [showDelete, setShowDelete] = useState(false);
     const {isFavourite} = useIsFavourite({sound});
-
+    const {isPlaying} = usePlaySoundListener({sound})
 
     const handleDelete = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -35,7 +36,7 @@ const Tile = ({sound}: TileProps) => {
             onClick={() => playSound(sound)}
             onMouseEnter={() => setShowDelete(true)}
             onMouseLeave={() => setShowDelete(false)}
-            className={"bg-neutral-800 relative p-2 w-24 h-24 break-words aspect-square flex items-center justify-center rounded-sm cursor-pointer border-neutral-700 border-[1px] text-white hover:bg-neutral-700"}
+            className={`${isPlaying ? "bg-orange-400 bg-opacity-10 text-orange-500 font-bold" : "bg-neutral-800"}  relative p-2 w-24 h-24 break-words aspect-square  flex items-center justify-center rounded-sm cursor-pointer border-neutral-700 border-[1px] text-white hover:bg-neutral-700`}
         >
             <span className={"break-words text-sm max-w-full"}>{sound?.name}</span>
             <div className={"absolute top-0 left-0"}>

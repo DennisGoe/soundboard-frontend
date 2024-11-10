@@ -8,7 +8,6 @@ import usePlaySoundListener from "../hooks/usePlaySoundListener";
 const ChangeListener = () => {
     useBoardListener()
     useFavouriteListener()
-    usePlaySoundListener()
     return (
         <></>
     );
