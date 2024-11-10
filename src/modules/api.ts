@@ -18,8 +18,7 @@ export interface SoundSchema {
     name: string;
 }
 
-interface UserData {
-    id: string;
+export interface UserSchema {
     username: string;
 }
 

@@ -1,6 +1,5 @@
 import React, { useRef } from 'react';
 import Button from "./utils/Button";
-import apiService from "../modules/api";
 
 interface UploadFileButtonProps {
     handleOpenFileUpload:(value: File |undefined) =>void

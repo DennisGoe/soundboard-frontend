@@ -3,6 +3,7 @@ import Board from "../components/Board";
 import UploadOverlay from "../components/UploadOverlay";
 import Options from "../components/Options";
 import LeftSideBar from "../components/LeftSideBar";
+import LogList from "../components/Log/LogList";
 
 
 const BoardPage = () => {
@@ -30,6 +31,7 @@ const BoardPage = () => {
                 showUploadOverlay &&
                 <UploadOverlay file={selectedFile} setShow={setShowUploadOverlay}/>
             }
+            <LogList/>
         </div>
     );
 };

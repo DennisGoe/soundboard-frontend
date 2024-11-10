@@ -4,6 +4,8 @@ import {ToastManager} from "../modules/notifications/ToastService";
 import {FailureToastTemplate, SuccessToastTemplate} from "../modules/notifications/ToastTemplates";
 import {useNavigate} from "react-router-dom";
 import "../login.css";
+import store from "../store/store";
+import authSlice from "../store/slices/auth";
 
 
 const LoginPage = () => {
@@ -15,6 +17,7 @@ const LoginPage = () => {
     const confirmLoginAttempt = async () => {
         try {
             await apiService.login({username: userName, password: password});
+            store.dispatch(authSlice.actions.setUsername(userName))
             ToastManager.show({...SuccessToastTemplate});
             navigate("/board");
         } catch (e: any) {
