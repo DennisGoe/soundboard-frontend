@@ -6,6 +6,7 @@ import {useSelector} from "react-redux";
 import store from "../store/store";
 import SearchBar from "./SearchBar";
 import RandomSoundButton from "./RandomSoundButton";
+import Icon from "./utils/Icon";
 
 interface OptionsProps {
     handleFileChange: (value: File | undefined) => void;
@@ -24,7 +25,8 @@ const Options = ({handleFileChange}: OptionsProps) => {
                 <VolumeSlider/>
                 <span>{volume}%</span>
             </div>
-            <div className={"h-8 "}>
+            <div className={"flex items-center h-8 gap-x-2"}>
+                <Icon icon={"search"} className={"text-white text-[13pt] mt-1"}/>
                 <SearchBar/>
             </div>
             <div className={"w-32"}>

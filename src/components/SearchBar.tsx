@@ -10,7 +10,7 @@ const SearchBar = () => {
     const searchValue = useSelector(() => store.getState().board?.filter)
 
     return (
-        <div className={"h-8"}>
+        <div className={"h-8 w-80"}>
             <StandardInput value={searchValue} setValue={(value) => store.dispatch(boardSlice.actions.setFilterValue(value)) }/>
         </div>
     );
