@@ -5,8 +5,9 @@ module.exports = {
   ],
   theme: {
     extend: {
-      color:{
-        button:"#3b82f6"
+      colors: {
+        button: "#3b82f6",
+        blue_main: "#2d73e3",
       }
     },
   },

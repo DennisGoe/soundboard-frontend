@@ -6,6 +6,7 @@ import {FailureToastTemplate, SuccessToastTemplate} from "../modules/notificatio
 import useIsFavourite from "../hooks/useIsFavourite";
 import {playSound} from "./utils/functions";
 import usePlaySoundListener from "../hooks/usePlaySoundListener";
+import {cn} from "../Utils/cn";
 
 interface TileProps {
     sound: SoundSchema;
@@ -14,7 +15,8 @@ interface TileProps {
 const Tile = ({sound}: TileProps) => {
     const [showDelete, setShowDelete] = useState(false);
     const {isFavourite} = useIsFavourite({sound});
-    const {isPlaying} = usePlaySoundListener({sound})
+    const {isPlaying} = usePlaySoundListener({sound});
+    const [isHovering, setIsHovering] = useState(false);
 
     const handleDelete = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -33,26 +35,44 @@ const Tile = ({sound}: TileProps) => {
 
     return (
         <div
+            className="aspect-[9/12] w-28 border-[1px] relative hover:border-blue_main hover:border-opacity-80 transition-all duration-300 hover:cursor-pointer border-neutral-800 rounded-lg overflow-hidden flex flex-col"
+            onMouseEnter={() => setIsHovering(true)}
+            onMouseLeave={() => setIsHovering(false)}
             onClick={() => playSound(sound)}
-            onMouseEnter={() => setShowDelete(true)}
-            onMouseLeave={() => setShowDelete(false)}
-            className={`${isPlaying ? "bg-orange-400 bg-opacity-10 text-orange-500 font-bold" : "bg-neutral-800"}  relative p-2 w-24 h-24 break-words aspect-square  flex items-center justify-center rounded-sm cursor-pointer border-neutral-700 border-[1px] text-white hover:bg-neutral-700`}
         >
-            <span className={"break-words text-sm max-w-full"}>{sound?.name}</span>
-            <div className={"absolute top-0 left-0"}>
-                <Icon icon={"kid_star"}
-                      onClick={e => handleFavClick(e)}
-                      className={`text-[12pt] hover:scale-125 ${isFavourite ? "text-yellow-300" : ""}`}/>
+            <div
+                className={`w-full h-2/3 bg-gradient-to-br transition-all duration-300 flex to-neutral-900 items-center justify-center ${
+                    (isHovering || isPlaying) ? "from-[rgba(45,115,227,0.2)]" : "from-neutral-800 "
+                }`}
+            >
+                <div
+                    className={`aspect-square w-[52px]  flex items-center justify-center transition-all duration-300  rounded-full bg-opacity-30 ${
+                        (isHovering || isPlaying) ? "bg-blue-500 bg-opacity-15" : "bg-neutral-700"
+                    }`}>
+                    <div
+                        className={`aspect-square w-[38px]  flex items-center justify-center transition-all duration-300  rounded-full bg-opacity-60 ${
+                            (isHovering || isPlaying) ? "bg-blue-500 bg-opacity-20" : "bg-neutral-700"
+                        }`}>
+                        <Icon icon="play_arrow"
+                              className={`text-2xl transition-all text-white duration-300 hover:scale-105 ${
+                                  (isHovering || isPlaying) ? "text-opacity-80" : ""
+                              }`}/>
+                    </div>
+                </div>
+            </div>
+            <div className="flex-1 flex items-center px-1 w-full">
+                <span className="break-words text-white text-[9pt] max-w-full">{sound?.name}</span>
             </div>
             {
-                showDelete &&
-                <div className={"absolute top-0 right-0 text-red-600 hover:scale-125"}>
-                    <Icon icon={"delete"}
-                          onClick={e => handleDelete(e)}
-                          className={"text-[15pt]"}/>
+                isHovering &&
+                <div className={"absolute top-2 left-2"}>
+                    <Icon icon={"kid_star"}
+                          onClick={e => handleFavClick(e)}
+                          className={`text-[12pt] transition-all duration-300  hover:scale-125 ${isFavourite ? "text-yellow-300" : "text-neutral-600"}`}/>
                 </div>
             }
         </div>
+
     );
 };
 
