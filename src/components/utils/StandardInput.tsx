@@ -12,7 +12,7 @@ interface StandardInputProps {
 const StandardInput = ({value, setValue, password = false, className = "", placeholder = ""}: StandardInputProps) => {
     return (
         <div className={"h-full w-full flex items-center gap-x-2 "}>
-            <input className={`${className} w-full h-full bg-neutral-200 rounded-full pl-10 `}
+            <input className={`w-full text-white bg-black gap-x-4 border border-neutral-800 py-2 px-4 transition-all duration-200 hover:bg-neutral-900 hover:bg-opacity-30 hover:brightness-110`}
                    value={value}
                    placeholder={placeholder}
                    type={password ? "password" : "text"}

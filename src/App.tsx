@@ -5,6 +5,7 @@ import {ToastProvider} from "./modules/notifications/ToastProvider";
 import {Provider} from "react-redux";
 import store from "./store/store";
 import ChangeListener from "./components/ChangeListener";
+import "./index.css"
 
 function App() {
     return (

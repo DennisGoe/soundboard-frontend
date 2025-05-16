@@ -34,7 +34,7 @@ const UploadFileButton = ({ handleOpenFileUpload }: UploadFileButtonProps) => {
 
     return (
         <div>
-            <Button onClick={handleButtonClick} text={"Upload MP3 File"} />
+            <Button variant={"secondary"} onClick={handleButtonClick} text={"Upload"} />
             <input
                 type="file"
                 ref={fileInputRef}

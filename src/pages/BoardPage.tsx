@@ -14,14 +14,13 @@ const BoardPage = () => {
         setSelectedFile(file);
     };
     return (
-        <div
-            className={"w-full h-screen w-full flex flex-col items-center justify-center bg-neutral-900 "}>
-            <Options handleFileChange={handleFileChange}/>
-            <div className={"flex-1 w-full flex-1  flex"}>
-                <div className={"w-[20%] border-r-[1px] relative border-neutral-500 h-full"}>
-                    <LeftSideBar/>
-                </div>
-                <div className={"w-full h-full  relative"}>
+        <div className={"w-full h-screen flex bg-neutral-900"}>
+            <div className={"w-[20%] border-r-[1px] relative border-neutral-800 h-full"}>
+                <LeftSideBar/>
+            </div>
+            <div className={"flex-1 h-full px-2 flex flex-col"}>
+                <Options handleFileChange={handleFileChange}/>
+                <div className={"flex-1 w-full relative"}>
                     <div className={"absolute left-0 right-0 top-0 bottom-0 overflow-y-auto"}>
                         <Board/>
                     </div>
@@ -31,7 +30,7 @@ const BoardPage = () => {
                 showUploadOverlay &&
                 <UploadOverlay file={selectedFile} setShow={setShowUploadOverlay}/>
             }
-            <LogList/>
+
         </div>
     );
 };

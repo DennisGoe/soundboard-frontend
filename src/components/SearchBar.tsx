@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react";
+import React from "react";
 import StandardInput from "./utils/StandardInput";
 import store from "../store/store";
 import boardSlice from "../store/slices/board";
@@ -10,7 +10,7 @@ const SearchBar = () => {
     const searchValue = useSelector(() => store.getState().board?.filter)
 
     return (
-        <div className={"h-8 w-80"}>
+        <div className={"h-full w-80"}>
             <StandardInput value={searchValue} setValue={(value) => store.dispatch(boardSlice.actions.setFilterValue(value)) }/>
         </div>
     );

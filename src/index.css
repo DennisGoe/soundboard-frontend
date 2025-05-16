@@ -1,3 +1,29 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Dark scrollbar styles */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1a1a1a; /* dark track */
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #444; /* slightly lighter thumb */
+    border-radius: 4px;
+    border: 2px solid #1a1a1a; /* match track */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #666; /* on hover */
+}
+
+/* Firefox scrollbar */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #444 #1a1a1a;
+}

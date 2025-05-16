@@ -13,7 +13,11 @@ const RandomSoundButton = ({}: RandomSoundButtonProps) => {
         playSound(soundList[random])
     };
     return (
-        <Button onClick={playRandomSound} text={"Zufall"}/>
+        <Button onClick={playRandomSound}
+                icon={"shuffle"}
+                variant={"secondary"}
+                iconClassName={"text-[12pt] mt-1 text-neutral-400 font-thin"}
+                text={""}/>
     );
 };
 

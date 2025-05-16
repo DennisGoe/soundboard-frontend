@@ -63,14 +63,11 @@ const Tile = ({sound}: TileProps) => {
             <div className="flex-1 flex items-center px-1 w-full">
                 <span className="break-words text-white text-[9pt] max-w-full">{sound?.name}</span>
             </div>
-            {
-                isHovering &&
-                <div className={"absolute top-2 left-2"}>
-                    <Icon icon={"kid_star"}
-                          onClick={e => handleFavClick(e)}
-                          className={`text-[12pt] transition-all duration-300  hover:scale-125 ${isFavourite ? "text-yellow-300" : "text-neutral-600"}`}/>
-                </div>
-            }
+            <div className={"absolute top-1 left-2"}>
+                <Icon icon={"kid_star"}
+                      onClick={e => handleFavClick(e)}
+                      className={`text-[12pt] transition-all duration-300  hover:scale-125 ${isFavourite ? "text-yellow-300" : "text-neutral-600"}`}/>
+            </div>
         </div>
 
     );
