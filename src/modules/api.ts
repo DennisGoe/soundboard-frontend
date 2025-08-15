@@ -33,6 +33,7 @@ const api = axios.create({
     },
 });
 
+// Request interceptor to add token to all requests
 api.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
         const token = localStorage.getItem('token');
@@ -49,6 +50,25 @@ api.interceptors.request.use(
         return config;
     },
     (error) => {
+        return Promise.reject(error);
+    }
+);
+
+// Response interceptor to handle authentication errors
+api.interceptors.response.use(
+    (response) => {
+        return response;
+    },
+    (error) => {
+        if (error.response?.status === 401) {
+            // Token is invalid or expired, clear auth state and redirect to login
+            store.dispatch(authSlice.actions.clearAuth());
+            
+            // Redirect to login page if not already there
+            if (window.location.pathname !== '/') {
+                window.location.href = '/';
+            }
+        }
         return Promise.reject(error);
     }
 );
@@ -90,7 +110,7 @@ const apiService = {
     },
 
     logout: (): void => {
-        localStorage.removeItem('token');
+        store.dispatch(authSlice.actions.clearAuth());
     },
 
     uploadFile: async (file: File, name: string): Promise<{ _id: string; url: string; name: string }> => {

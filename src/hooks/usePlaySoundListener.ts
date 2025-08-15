@@ -1,6 +1,6 @@
 import {useSelector} from "react-redux";
 import {useEffect, useState} from "react";
-import socket from "../modules/notifications/socket";
+import { getSocket } from "../modules/notifications/socket";
 import {SoundSchema} from "../modules/api";
 
 interface Props {
@@ -12,7 +12,9 @@ const usePlaySoundListener = ({sound}: Props) => {
     const [isPlaying, setIsPlaying] = useState(false);
 
     useEffect(() => {
-        socket.on("playSound", (data: SoundSchema) => {
+        const socket = getSocket();
+        
+        const handlePlaySound = (data: SoundSchema) => {
             if (data._id === sound._id) {
                 const audio = new Audio(data.url);
                 audio.volume = (volume ?? 100) / 100;
@@ -20,14 +22,19 @@ const usePlaySoundListener = ({sound}: Props) => {
                 audio.onplay = () => setIsPlaying(true);
                 audio.onended = () => setIsPlaying(false);
 
-                audio.play();
+                audio.play().catch((error) => {
+                    console.error('Error playing audio:', error);
+                    setIsPlaying(false);
+                });
             }
-        });
+        };
+
+        socket.on("playSound", handlePlaySound);
 
         return () => {
-            socket.off("playSound");
+            socket.off("playSound", handlePlaySound);
         };
-    }, [volume]);
+    }, [sound._id, volume]);
 
     return {isPlaying};
 };
