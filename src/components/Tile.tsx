@@ -24,7 +24,11 @@ const Tile = ({sound}: TileProps) => {
             await apiService.deleteFile(sound._id);
             ToastManager.show({...SuccessToastTemplate});
         } catch (e) {
-            ToastManager.show({...FailureToastTemplate});
+            console.log(e);
+            ToastManager.show({
+                ...FailureToastTemplate
+
+            });
         }
     };
 
@@ -40,6 +44,10 @@ const Tile = ({sound}: TileProps) => {
             onMouseLeave={() => setIsHovering(false)}
             onClick={() => playSound(sound)}
         >
+            {
+                isHovering &&
+                <Icon icon={"delete"} className={"text-red-600 text-xs absolute hover:scale-105 top-1 right-1"} onClick={handleDelete}/>
+            }
             <div
                 className={`w-full h-2/3 bg-gradient-to-br transition-all duration-300 flex to-neutral-900 items-center justify-center ${
                     (isHovering || isPlaying) ? "from-[rgba(45,115,227,0.2)]" : "from-neutral-800 "
