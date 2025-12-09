@@ -4,13 +4,17 @@ import {SoundSchema} from "../../modules/api";
 interface BoardInterface {
     sounds: SoundSchema[];
     favourites: SoundSchema[],
-    filter: string
+    filter: string,
+    selectedSound?: SoundSchema |null,
+    showDelete:boolean
 }
 
 const initialState: BoardInterface = {
     sounds: [],
     favourites:[],
-    filter:""
+    filter:"",
+    selectedSound: null,
+    showDelete:false
 };
 
 
@@ -26,6 +30,12 @@ const boardSlice = createSlice({
         },
         setFilterValue(state, action: PayloadAction<string>){
             state.filter = action.payload
+        },
+        setSelectedSound(state, action: PayloadAction<SoundSchema | null>){
+            state.selectedSound = action.payload
+        },
+        setShowDelete(state, action: PayloadAction<boolean>){
+            state.showDelete = action.payload
         }
     }
 });

@@ -4,9 +4,13 @@ import UploadOverlay from "../components/UploadOverlay";
 import Options from "../components/Options";
 import LeftSideBar from "../components/LeftSideBar";
 import LogList from "../components/Log/LogList";
+import {DeleteModal} from "../components/DeleteModal";
+import {useSelector} from "react-redux";
+import store from "../store/store";
 
 
 const BoardPage = () => {
+    const showDelete = useSelector(() => store.getState().board?.showDelete);
     const [showUploadOverlay, setShowUploadOverlay] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | undefined>(undefined);
     const handleFileChange = (file: File | undefined) => {
@@ -15,6 +19,9 @@ const BoardPage = () => {
     };
     return (
         <div className={"w-full h-screen flex bg-neutral-900"}>
+            {showDelete &&
+                <DeleteModal/>
+            }
             <div className={"w-[20%] border-r-[1px] relative border-neutral-800 h-full"}>
                 <LeftSideBar/>
             </div>

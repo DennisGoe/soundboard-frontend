@@ -7,6 +7,8 @@ import useIsFavourite from "../hooks/useIsFavourite";
 import {playSound} from "./utils/functions";
 import usePlaySoundListener from "../hooks/usePlaySoundListener";
 import {cn} from "../Utils/cn";
+import boardSlice from "../store/slices/board";
+import store from "../store/store";
 
 interface TileProps {
     sound: SoundSchema;
@@ -20,16 +22,8 @@ const Tile = ({sound}: TileProps) => {
 
     const handleDelete = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        try {
-            await apiService.deleteFile(sound._id);
-            ToastManager.show({...SuccessToastTemplate});
-        } catch (e) {
-            console.log(e);
-            ToastManager.show({
-                ...FailureToastTemplate
-
-            });
-        }
+        store.dispatch(boardSlice.actions.setSelectedSound(sound));
+        store.dispatch(boardSlice.actions.setShowDelete(true));
     };
 
     const handleFavClick = (e: React.MouseEvent) => {
@@ -46,7 +40,8 @@ const Tile = ({sound}: TileProps) => {
         >
             {
                 isHovering &&
-                <Icon icon={"delete"} className={"text-red-600 text-xs absolute hover:scale-105 top-1 right-1"} onClick={handleDelete}/>
+                <Icon icon={"delete"} className={"text-red-600 text-xs absolute hover:scale-105 top-1 right-1"}
+                      onClick={handleDelete}/>
             }
             <div
                 className={`w-full h-2/3 bg-gradient-to-br transition-all duration-300 flex to-neutral-900 items-center justify-center ${
