@@ -21,7 +21,7 @@ const LogoutButton = () => {
     return (
         <Button
             icon={"logout"}
-            iconClassName={"text-[14pt] mt-2"}
+            iconClassName={"text-[13pt] text-neutral-400 transition-colors duration-200 group-hover:text-white"}
             onClick={logout}
             text={"Logout"}
             variant={"secondary"}

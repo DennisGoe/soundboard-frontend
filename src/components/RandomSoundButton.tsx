@@ -16,7 +16,7 @@ const RandomSoundButton = ({}: RandomSoundButtonProps) => {
         <Button onClick={playRandomSound}
                 icon={"shuffle"}
                 variant={"secondary"}
-                iconClassName={"text-[12pt] mt-1 text-neutral-400 font-thin"}
+                iconClassName={"text-[12pt] text-neutral-400 font-thin transition-colors duration-200 group-hover:text-white"}
                 text={""}/>
     );
 };

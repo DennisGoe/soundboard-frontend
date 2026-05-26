@@ -1,18 +1,24 @@
-import React, {useState} from "react";
+import React, {useEffect, useState} from "react";
 import Board from "../components/Board";
 import UploadOverlay from "../components/UploadOverlay";
 import Options from "../components/Options";
 import LeftSideBar from "../components/LeftSideBar";
-import LogList from "../components/Log/LogList";
 import {DeleteModal} from "../components/DeleteModal";
+import NowPlayingBanner from "../components/NowPlayingBanner";
 import {useSelector} from "react-redux";
 import store from "../store/store";
+import {initAudioPlayer} from "../modules/audioPlayer";
 
 
 const BoardPage = () => {
     const showDelete = useSelector(() => store.getState().board?.showDelete);
     const [showUploadOverlay, setShowUploadOverlay] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | undefined>(undefined);
+
+    useEffect(() => {
+        initAudioPlayer();
+    }, []);
+
     const handleFileChange = (file: File | undefined) => {
         setShowUploadOverlay(true);
         setSelectedFile(file);
@@ -37,6 +43,7 @@ const BoardPage = () => {
                 showUploadOverlay &&
                 <UploadOverlay file={selectedFile} setShow={setShowUploadOverlay}/>
             }
+            <NowPlayingBanner/>
 
         </div>
     );

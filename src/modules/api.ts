@@ -1,6 +1,8 @@
 import axios, { AxiosResponse, InternalAxiosRequestConfig, AxiosHeaders } from 'axios';
 import store from "../store/store";
 import authSlice from "../store/slices/auth";
+import {ToastManager} from "./notifications/ToastService";
+import {FailureToastTemplate} from "./notifications/ToastTemplates";
 
 interface UserCredentials {
     username: string;
@@ -61,13 +63,15 @@ api.interceptors.response.use(
     },
     (error) => {
         if (error.response?.status === 401) {
-            // Token is invalid or expired, clear auth state and redirect to login
-            store.dispatch(authSlice.actions.clearAuth());
-            
-            // Redirect to login page if not already there
-            if (window.location.pathname !== '/') {
-                window.location.href = '/';
+            const wasAuthenticated = !!store.getState().auth?.isAuthenticated;
+            if (wasAuthenticated) {
+                ToastManager.show({
+                    ...FailureToastTemplate,
+                    translationKey: "Deine Session ist abgelaufen. Bitte logge dich neu ein.",
+                });
             }
+            store.dispatch(authSlice.actions.clearAuth());
+            // ProtectedRoute reacts to isAuthenticated=false and navigates via react-router.
         }
         return Promise.reject(error);
     }

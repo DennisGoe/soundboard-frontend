@@ -1,9 +1,19 @@
 import {createSlice, PayloadAction} from "@reduxjs/toolkit";
+import {isJwtExpired} from "../../Utils/jwt";
+
+const persistedToken = localStorage.getItem("token") ?? "";
+const persistedUsername = localStorage.getItem("username") ?? "";
+const tokenValid = !!persistedToken && !isJwtExpired(persistedToken);
+
+if (!tokenValid && persistedToken) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+}
 
 const initialState = {
-    token: localStorage.getItem("token") ?? "",
-    userName: localStorage.getItem("username") ?? "",
-    isAuthenticated: !!(localStorage.getItem("token")),
+    token: tokenValid ? persistedToken : "",
+    userName: tokenValid ? persistedUsername : "",
+    isAuthenticated: tokenValid,
 };
 
 const authSlice = createSlice({
