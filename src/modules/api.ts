@@ -153,6 +153,22 @@ const apiService = {
         return handleRequest(api.get<{ maps: MapListItem[] }>('/api/maps'));
     },
 
+    getMap: async (id: string): Promise<{ map: MapFull }> => {
+        return handleRequest(api.get<{ map: MapFull }>(`/api/maps/${id}`));
+    },
+
+    createMap: async (body: { name: string; doc: any; kind?: string }): Promise<{ map: MapFull }> => {
+        return handleRequest(api.post<{ map: MapFull }>('/api/maps', body));
+    },
+
+    updateMap: async (id: string, body: { name?: string; doc?: any }): Promise<{ map: MapFull }> => {
+        return handleRequest(api.put<{ map: MapFull }>(`/api/maps/${id}`, body));
+    },
+
+    deleteMap: async (id: string): Promise<{ msg: string }> => {
+        return handleRequest(api.delete<{ msg: string }>(`/api/maps/${id}`));
+    },
+
     uploadMapImage: async (
         file: File,
         name: string
@@ -225,10 +241,14 @@ export interface MapListItem {
     name: string;
     owner: string | null;
     isExample: boolean;
-    kind?: '3d' | '2d-image';
+    kind?: '3d' | '2d-image' | '2d-editor';
     imageUrl?: string | null;
     createdAt: string;
     updatedAt: string;
+}
+
+export interface MapFull extends MapListItem {
+    doc: any;
 }
 
 export interface PlayerRef {

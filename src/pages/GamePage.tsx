@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import apiService, { Campaign, ChatMessage, MapListItem } from "../modules/api";
+import apiService, { Campaign, ChatMessage, MapFull, MapListItem } from "../modules/api";
 import { getSocket } from "../modules/notifications/socket";
 import { useAuth } from "../hooks/useAuth";
 import "./campaigns.css";
 import "./game.css";
+import "./mapEditor.css";
+import { EditorDoc, normalizeDoc } from "../mapEditor/engine";
+import { Transform, render as renderMap } from "../mapEditor/renderer";
 
 interface PresenceUser {
     _id: string;
@@ -103,15 +106,37 @@ const GamePage: React.FC = () => {
         const onActive = (p: { campaignId: string; activeMapId: string | null }) => {
             if (p.campaignId === id) setActiveMapId(p.activeMapId);
         };
+        const onMapUpdated = (p: { campaignId: string; mapId: string; map: MapFull }) => {
+            if (p.campaignId !== id) return;
+            // Nur relevant, wenn die Map gerade aktiv ist.
+            setEditorMapCache((prev) => {
+                const next = new Map(prev);
+                next.set(p.mapId, p.map);
+                return next;
+            });
+            // auch in der Maps-Liste den name + kind refreshen
+            setMaps((prev) => prev.map((m) => (m._id === p.mapId ? {
+                _id: p.map._id,
+                name: p.map.name,
+                owner: p.map.owner as any,
+                isExample: p.map.isExample,
+                kind: p.map.kind,
+                imageUrl: p.map.imageUrl,
+                createdAt: p.map.createdAt,
+                updatedAt: p.map.updatedAt,
+            } : m)));
+        };
         socket.on("campaign:presence", onPresence);
         socket.on("campaign:chat", onChat);
         socket.on("campaign:activeMap", onActive);
+        socket.on("campaign:mapUpdated", onMapUpdated);
 
         return () => {
             socket.off("connect", join);
             socket.off("campaign:presence", onPresence);
             socket.off("campaign:chat", onChat);
             socket.off("campaign:activeMap", onActive);
+            socket.off("campaign:mapUpdated", onMapUpdated);
             try {
                 socket.emit("campaign:leave", { campaignId: id });
             } catch { /* ignore */ }
@@ -167,9 +192,141 @@ const GamePage: React.FC = () => {
     const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
     const dragRef = useRef<{ x: number; y: number } | null>(null);
     const centreRef = useRef<HTMLDivElement | null>(null);
+    // Doc-Cache fuer 2d-editor-Karten im Spiel. Wird per REST geladen und
+    // via campaign:mapUpdated live aktualisiert.
+    const [editorMapCache, setEditorMapCache] = useState<Map<string, MapFull>>(new Map());
+    const editorCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const editorWrapRef = useRef<HTMLDivElement | null>(null);
+    const editorTransformRef = useRef<Transform>({ x: 0, y: 0, scale: 1, tilePx: 32 });
+    const editorPanRef = useRef<{ x: number; y: number } | null>(null);
 
     // Reset Zoom bei Kartenwechsel
     useEffect(() => { setTransform({ x: 0, y: 0, scale: 1 }); }, [activeMapId]);
+
+    // 2D-Editor-Docs on-demand laden, sobald sie aktiv werden.
+    useEffect(() => {
+        if (!activeMap) return;
+        if (activeMap.kind !== "2d-editor") return;
+        if (editorMapCache.has(activeMap._id)) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const { map } = await apiService.getMap(activeMap._id);
+                if (cancelled) return;
+                setEditorMapCache((prev) => {
+                    const next = new Map(prev);
+                    next.set(map._id, map);
+                    return next;
+                });
+            } catch (e) {
+                // Still: Fehler zeigen wir nicht im Spielbrett — der Spieler
+                // sieht dann den fallback "Keine Karte"-Hinweis.
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [activeMap, editorMapCache]);
+
+    // Editor-Doc fuer den aktuellen Spielraum.
+    const activeEditorDoc: EditorDoc | null = useMemo(() => {
+        if (!activeMap || activeMap.kind !== "2d-editor") return null;
+        const full = editorMapCache.get(activeMap._id);
+        if (!full || !full.doc) return null;
+        return normalizeDoc(full.doc);
+    }, [activeMap, editorMapCache]);
+
+    // Zentriert die Karte beim ersten Draw, damit sie nicht in der Ecke sitzt.
+    const editorCenteredRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!activeEditorDoc) { editorCenteredRef.current = null; return; }
+        const cv = editorCanvasRef.current;
+        const wrap = editorWrapRef.current;
+        if (!cv || !wrap) return;
+        if (editorCenteredRef.current === activeMap?._id) return;
+        const w = wrap.clientWidth, h = wrap.clientHeight;
+        const tile = 24;
+        const maxScale = Math.min(w / (activeEditorDoc.width * tile), h / (activeEditorDoc.height * tile));
+        const scale = Math.max(0.2, Math.min(1.5, maxScale * 0.95));
+        editorTransformRef.current = {
+            tilePx: tile,
+            scale,
+            x: (w - activeEditorDoc.width * tile * scale) / 2,
+            y: (h - activeEditorDoc.height * tile * scale) / 2,
+        };
+        editorCenteredRef.current = activeMap?._id || null;
+    }, [activeEditorDoc, activeMap?._id]);
+
+    // Redraw bei Doc-Aenderung + Groessenaenderung
+    useEffect(() => {
+        if (!activeEditorDoc) return;
+        const cv = editorCanvasRef.current;
+        const wrap = editorWrapRef.current;
+        if (!cv || !wrap) return;
+        const draw = () => {
+            const dpr = window.devicePixelRatio || 1;
+            const w = wrap.clientWidth, h = wrap.clientHeight;
+            cv.width = Math.max(100, Math.floor(w * dpr));
+            cv.height = Math.max(100, Math.floor(h * dpr));
+            cv.style.width = w + "px";
+            cv.style.height = h + "px";
+            const ctx = cv.getContext("2d");
+            if (!ctx) return;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            renderMap(ctx, activeEditorDoc, editorTransformRef.current, { showGrid: true });
+        };
+        draw();
+        const obs = new ResizeObserver(draw);
+        obs.observe(wrap);
+        return () => obs.disconnect();
+    }, [activeEditorDoc]);
+
+    const editorRedraw = useCallback(() => {
+        if (!activeEditorDoc) return;
+        const cv = editorCanvasRef.current;
+        if (!cv) return;
+        const ctx = cv.getContext("2d");
+        if (!ctx) return;
+        const dpr = window.devicePixelRatio || 1;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        renderMap(ctx, activeEditorDoc, editorTransformRef.current, { showGrid: true });
+    }, [activeEditorDoc]);
+
+    const onEditorPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+        editorPanRef.current = { x: e.clientX - editorTransformRef.current.x, y: e.clientY - editorTransformRef.current.y };
+    };
+    const onEditorPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        if (!editorPanRef.current) return;
+        editorTransformRef.current = {
+            ...editorTransformRef.current,
+            x: e.clientX - editorPanRef.current.x,
+            y: e.clientY - editorPanRef.current.y,
+        };
+        editorRedraw();
+    };
+    const onEditorPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        try { (e.target as HTMLCanvasElement).releasePointerCapture(e.pointerId); } catch {}
+        editorPanRef.current = null;
+    };
+    const onEditorWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+        e.preventDefault();
+        const cv = editorCanvasRef.current;
+        if (!cv) return;
+        const rect = cv.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+        const factor = e.deltaY > 0 ? 0.9 : 1.1;
+        const prev = editorTransformRef.current;
+        const nextScale = Math.max(0.2, Math.min(4, prev.scale * factor));
+        const wx = (cx - prev.x) / (prev.tilePx * prev.scale);
+        const wy = (cy - prev.y) / (prev.tilePx * prev.scale);
+        editorTransformRef.current = {
+            tilePx: prev.tilePx,
+            scale: nextScale,
+            x: cx - wx * prev.tilePx * nextScale,
+            y: cy - wy * prev.tilePx * nextScale,
+        };
+        editorRedraw();
+    };
 
     const onMouseDown = (e: React.MouseEvent) => {
         dragRef.current = { x: e.clientX - transform.x, y: e.clientY - transform.y };
@@ -256,7 +413,11 @@ const GamePage: React.FC = () => {
                                 .map((m) => (
                                     <option key={m._id} value={m._id}>
                                         {m.name}
-                                        {m.kind === "2d-image" ? " (Bild)" : " (3D)"}
+                                        {m.kind === "2d-image"
+                                            ? " (Bild)"
+                                            : m.kind === "2d-editor"
+                                            ? " (2D)"
+                                            : " (3D)"}
                                     </option>
                                 ))}
                         </select>
@@ -294,6 +455,25 @@ const GamePage: React.FC = () => {
                             <button onClick={resetZoom} title="Zurücksetzen">&#9711;</button>
                             <button onClick={() => bumpZoom(1)} title="Vergrößern">+</button>
                         </div>
+                    </div>
+                ) : activeMap.kind === "2d-editor" ? (
+                    <div className="game-map editor-readonly" ref={editorWrapRef}>
+                        {!activeEditorDoc ? (
+                            <div className="game-no-map">
+                                <h2>Lade 2D-Karte &hellip;</h2>
+                            </div>
+                        ) : (
+                            <canvas
+                                ref={editorCanvasRef}
+                                onPointerDown={onEditorPointerDown}
+                                onPointerMove={onEditorPointerMove}
+                                onPointerUp={onEditorPointerUp}
+                                onPointerCancel={onEditorPointerUp}
+                                onPointerLeave={onEditorPointerUp}
+                                onWheel={onEditorWheel}
+                                style={{ cursor: "grab" }}
+                            />
+                        )}
                     </div>
                 ) : (
                     <div className="game-3d-hint">

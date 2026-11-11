@@ -5,6 +5,8 @@ import BoardPage from "../pages/BoardPage";
 import CampaignsPage from "../pages/CampaignsPage";
 import CampaignDetailPage from "../pages/CampaignDetailPage";
 import GamePage from "../pages/GamePage";
+import MapsListPage from "../pages/MapsListPage";
+import MapEditorPage from "../pages/MapEditorPage";
 import ProtectedRoute from "../components/ProtectedRoute";
 import { useAuth } from "../hooks/useAuth";
 
@@ -45,6 +47,21 @@ const CustomRouter = (): JSX.Element => {
                 <Route path="/kampagnen/:id/spiel" element={
                     <ProtectedRoute>
                         <GamePage/>
+                    </ProtectedRoute>
+                }/>
+                <Route path="/karten" element={
+                    <ProtectedRoute>
+                        <MapsListPage/>
+                    </ProtectedRoute>
+                }/>
+                <Route path="/karten/neu" element={
+                    <ProtectedRoute>
+                        <MapEditorPage/>
+                    </ProtectedRoute>
+                }/>
+                <Route path="/karten/:id/bearbeiten" element={
+                    <ProtectedRoute>
+                        <MapEditorPage/>
                     </ProtectedRoute>
                 }/>
                 <Route path="/bilder" element={<BilderRedirect/>}/>

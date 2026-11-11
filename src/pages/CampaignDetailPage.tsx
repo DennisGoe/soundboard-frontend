@@ -219,12 +219,26 @@ const CampaignDetailPage: React.FC = () => {
                                     <div key={m._id} className="map-row">
                                         <div className="left">
                                             <span className="pill light">
-                                                {m.kind === "2d-image" ? "Bild" : (m.isExample ? "Beispiel" : "3D")}
+                                                {m.kind === "2d-image"
+                                                    ? "Bild"
+                                                    : m.kind === "2d-editor"
+                                                    ? "2D"
+                                                    : m.isExample
+                                                    ? "Beispiel"
+                                                    : "3D"}
                                             </span>
                                             <span className="name">{m.name}</span>
                                         </div>
                                         <div className="right">
-                                            {m.kind !== "2d-image" && (
+                                            {m.kind === "2d-editor" && isOwner && !m.isExample && (
+                                                <Link
+                                                    className="open-link"
+                                                    to={`/karten/${m._id}/bearbeiten`}
+                                                >
+                                                    Im 2D-Editor öffnen
+                                                </Link>
+                                            )}
+                                            {(m.kind === "3d" || !m.kind) && (
                                                 <a
                                                     className="open-link"
                                                     href={`/bilder/?map=${m._id}`}
@@ -266,6 +280,8 @@ const CampaignDetailPage: React.FC = () => {
                                                         {m.name}
                                                         {m.kind === "2d-image"
                                                             ? " (Bild)"
+                                                            : m.kind === "2d-editor"
+                                                            ? " (2D)"
                                                             : m.isExample
                                                             ? " (Beispiel)"
                                                             : ""}
@@ -282,6 +298,24 @@ const CampaignDetailPage: React.FC = () => {
                                         </div>
                                     </>
                                 )}
+                                <div className="section-title">Neue Karte</div>
+                                <div className="add-map-row" style={{ gap: 10 }}>
+                                    <Link
+                                        to="/karten/neu"
+                                        className="btn-rust"
+                                        style={{
+                                            textDecoration: "none",
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                        }}
+                                    >
+                                        + 2D-Karte bauen
+                                    </Link>
+                                    <div style={{ color: "#cbb989", fontStyle: "italic", fontSize: 13 }}>
+                                        Öffnet den 2D-Editor. Nach dem Speichern kannst du die Karte oben
+                                        zuweisen.
+                                    </div>
+                                </div>
                                 <div className="section-title">Bild als Karte hochladen</div>
                                 <UploadImageRow onUploaded={onMapUploaded} />
                                 {maps !== null && availableMaps.length === 0 && (
