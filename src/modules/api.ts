@@ -24,8 +24,10 @@ export interface UserSchema {
     username: string;
 }
 
-const url = 'https://soundboard-backend.onrender.com';
-// const url = 'http://localhost:3000';
+// REACT_APP_API_URL erlaubt lokales Testen gegen ein eigenes Backend
+// (z.B. REACT_APP_API_URL=http://localhost:3000 npm start). Produktion
+// faellt weiterhin auf das Render-Backend zurueck.
+const url = process.env.REACT_APP_API_URL || 'https://soundboard-backend.onrender.com';
 export const BASE_URL = url;
 
 const api = axios.create({
@@ -138,6 +140,56 @@ const apiService = {
     getAllFiles: async (): Promise<SoundSchema[]> => {
         return handleRequest(api.get<SoundSchema[]>('/api/files/all'));
     },
+
+    // ---------- D&D-Builder: Maps + Kampagnen ----------
+    listMaps: async (): Promise<{ maps: MapListItem[] }> => {
+        return handleRequest(api.get<{ maps: MapListItem[] }>('/api/maps'));
+    },
+
+    listCampaigns: async (): Promise<{ campaigns: Campaign[] }> => {
+        return handleRequest(api.get<{ campaigns: Campaign[] }>('/api/campaigns'));
+    },
+
+    getCampaign: async (id: string): Promise<{ campaign: Campaign }> => {
+        return handleRequest(api.get<{ campaign: Campaign }>(`/api/campaigns/${id}`));
+    },
+
+    createCampaign: async (body: CampaignInput): Promise<{ campaign: Campaign }> => {
+        return handleRequest(api.post<{ campaign: Campaign }>('/api/campaigns', body));
+    },
+
+    updateCampaign: async (id: string, body: Partial<CampaignInput>): Promise<{ campaign: Campaign }> => {
+        return handleRequest(api.put<{ campaign: Campaign }>(`/api/campaigns/${id}`, body));
+    },
+
+    deleteCampaign: async (id: string): Promise<{ msg: string }> => {
+        return handleRequest(api.delete<{ msg: string }>(`/api/campaigns/${id}`));
+    },
 };
+
+export interface MapListItem {
+    _id: string;
+    name: string;
+    owner: string | null;
+    isExample: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface Campaign {
+    _id: string;
+    name: string;
+    description: string;
+    owner: string;
+    mapIds: string[];
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface CampaignInput {
+    name: string;
+    description?: string;
+    mapIds?: string[];
+}
 
 export default apiService;

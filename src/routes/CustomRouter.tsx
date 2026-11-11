@@ -2,6 +2,8 @@ import {BrowserRouter as Router, Routes, Route, Navigate} from "react-router-dom
 import React, { useEffect } from "react";
 import LoginPage from "../pages/LoginPage";
 import BoardPage from "../pages/BoardPage";
+import CampaignsPage from "../pages/CampaignsPage";
+import CampaignDetailPage from "../pages/CampaignDetailPage";
 import ProtectedRoute from "../components/ProtectedRoute";
 import { useAuth } from "../hooks/useAuth";
 
@@ -27,6 +29,16 @@ const CustomRouter = (): JSX.Element => {
                 <Route path="/board" element={
                     <ProtectedRoute>
                         <BoardPage/>
+                    </ProtectedRoute>
+                }/>
+                <Route path="/kampagnen" element={
+                    <ProtectedRoute>
+                        <CampaignsPage/>
+                    </ProtectedRoute>
+                }/>
+                <Route path="/kampagnen/:id" element={
+                    <ProtectedRoute>
+                        <CampaignDetailPage/>
                     </ProtectedRoute>
                 }/>
                 <Route path="/bilder" element={<BilderRedirect/>}/>

@@ -1,0 +1,667 @@
+/* D&D-Builder Kampagnen-UI
+ * Pergament-Karten auf dunklem Holzhintergrund, Serif-Titel in Rostrot.
+ * Referenzen: D&D Beyond / Rules of Play (siehe style-refs 38-41).
+ */
+
+:root {
+    --parchment: #f2e6cb;
+    --parchment-dark: #e2d2ad;
+    --parchment-edge: #a8906a;
+    --ink: #2a1f14;
+    --ink-soft: #5a4634;
+    --rust: #9b2a1e;
+    --rust-dark: #6f1f16;
+    --rust-glow: #c04e3f;
+    --gold: #c2a053;
+    --gold-soft: #8b6f3b;
+    --wood-900: #120a05;
+    --wood-800: #1c130a;
+    --wood-700: #2a1b0e;
+    --olive: #3d4a2a;
+    --olive-light: #5c6e3d;
+}
+
+.campaigns-root {
+    min-height: 100vh;
+    width: 100%;
+    color: var(--ink);
+    font-family: "Crimson Text", "Georgia", serif;
+    position: relative;
+    background-color: var(--wood-900);
+    background-image:
+        radial-gradient(ellipse at 20% -10%, rgba(155, 42, 30, 0.18), transparent 55%),
+        radial-gradient(ellipse at 80% 110%, rgba(194, 160, 83, 0.10), transparent 55%),
+        repeating-linear-gradient(
+            92deg,
+            #150c06 0 3px,
+            #1a1108 3px 6px,
+            #110802 6px 9px
+        ),
+        linear-gradient(180deg, #110802 0%, #1b120a 100%);
+    background-attachment: fixed;
+    background-size: auto, auto, 160px 100%, 100% 100%;
+}
+
+.campaigns-root::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(1200px 500px at 50% -10%, rgba(0, 0, 0, 0.35), transparent 65%),
+        radial-gradient(900px 400px at 50% 110%, rgba(0, 0, 0, 0.55), transparent 65%);
+    z-index: 0;
+}
+
+.campaigns-container {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 36px 24px 72px 24px;
+}
+
+.campaigns-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    color: #c2a053;
+    font-family: "Cinzel", serif;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+.campaigns-topbar a,
+.campaigns-topbar button {
+    color: #d7bd7a;
+    text-decoration: none;
+    background: transparent;
+    border: 1px solid rgba(194, 160, 83, 0.4);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.campaigns-topbar a:hover,
+.campaigns-topbar button:hover {
+    border-color: var(--gold);
+    color: #f1dca2;
+    background: rgba(194, 160, 83, 0.1);
+}
+
+/* ===== Header ===== */
+.campaigns-header {
+    text-align: center;
+    padding: 28px 16px 36px 16px;
+    position: relative;
+    margin-bottom: 20px;
+}
+.campaigns-header h1 {
+    font-family: "Cinzel", serif;
+    font-weight: 700;
+    color: #e6c56a;
+    font-size: clamp(32px, 4vw, 48px);
+    letter-spacing: 0.08em;
+    margin: 0 0 10px 0;
+    text-shadow: 0 2px 0 #000, 0 0 20px rgba(194, 160, 83, 0.25);
+}
+.campaigns-header .sub {
+    color: #cbb989;
+    font-style: italic;
+    font-size: 16px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+.campaigns-header .rule {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin: 14px auto 0 auto;
+    width: 60%;
+    max-width: 420px;
+    color: var(--rust-glow);
+}
+.campaigns-header .rule .line {
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--rust) 50%, transparent);
+    border-radius: 1px;
+}
+.campaigns-header .rule .diamond {
+    width: 10px;
+    height: 10px;
+    background: var(--rust);
+    transform: rotate(45deg);
+    box-shadow: 0 0 10px rgba(192, 78, 63, 0.6);
+}
+
+/* ===== Action-Zeile ===== */
+.campaigns-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 20px;
+}
+.btn-rust {
+    font-family: "Cinzel", serif;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-size: 13px;
+    background: linear-gradient(180deg, var(--rust) 0%, var(--rust-dark) 100%);
+    color: #f6e6c6;
+    border: 1px solid #4a0f08;
+    padding: 10px 20px;
+    border-radius: 3px;
+    cursor: pointer;
+    box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.15) inset,
+        0 2px 6px rgba(0, 0, 0, 0.45);
+    transition: filter 0.15s;
+}
+.btn-rust:hover { filter: brightness(1.1); }
+.btn-rust:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-ghost {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--parchment-edge);
+    padding: 8px 14px;
+    border-radius: 3px;
+    font-family: "Cinzel", serif;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.btn-ghost:hover { background: rgba(0, 0, 0, 0.07); }
+.btn-ghost.danger { color: var(--rust-dark); border-color: var(--rust-dark); }
+.btn-ghost.danger:hover { background: rgba(155, 42, 30, 0.08); }
+
+/* ===== Kampagnen-Grid ===== */
+.campaigns-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+/* ===== Pergament-Karte ===== */
+.parchment-card {
+    position: relative;
+    background-color: var(--parchment);
+    background-image:
+        radial-gradient(ellipse at 30% 20%, rgba(255, 245, 220, 0.6), transparent 60%),
+        radial-gradient(ellipse at 80% 90%, rgba(120, 85, 45, 0.14), transparent 60%),
+        linear-gradient(135deg, var(--parchment) 0%, var(--parchment-dark) 100%);
+    color: var(--ink);
+    border: 1px solid var(--parchment-edge);
+    border-radius: 3px;
+    padding: 18px 20px 20px 20px;
+    box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.5) inset,
+        0 0 0 1px rgba(90, 60, 25, 0.25) inset,
+        0 10px 24px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+}
+.parchment-card::before {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border: 1px solid rgba(120, 85, 45, 0.25);
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.card-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+.card-title {
+    font-family: "Cinzel", serif;
+    font-weight: 700;
+    color: var(--rust);
+    font-size: 22px;
+    margin: 0 0 4px 0;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+}
+.card-sub {
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+.card-divider {
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--rust) 20%, var(--rust) 80%, transparent);
+    margin: 10px 0 12px 0;
+    opacity: 0.6;
+}
+.card-body {
+    font-size: 15px;
+    color: var(--ink-soft);
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 48px;
+}
+.card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 14px;
+    gap: 8px;
+}
+
+/* Dunkle Pille a la Level-Badge in 38 */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #1b120a;
+    color: #e6c56a;
+    font-family: "Cinzel", serif;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid #000;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+}
+.pill.light {
+    background: #f6e9c7;
+    color: var(--rust-dark);
+    border: 1px solid var(--parchment-edge);
+}
+
+.card-actions {
+    display: flex;
+    gap: 6px;
+}
+
+/* ===== leeres State ===== */
+.empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #cbb989;
+    font-style: italic;
+}
+.empty h3 {
+    font-family: "Cinzel", serif;
+    color: #e6c56a;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+    font-style: normal;
+}
+
+/* ===== Modal / Dialog ===== */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 20px;
+}
+.modal {
+    width: 100%;
+    max-width: 540px;
+    background-color: var(--parchment);
+    background-image:
+        radial-gradient(ellipse at 20% 10%, rgba(255, 245, 220, 0.6), transparent 60%),
+        linear-gradient(135deg, var(--parchment) 0%, var(--parchment-dark) 100%);
+    border: 1px solid var(--parchment-edge);
+    padding: 22px 24px;
+    border-radius: 3px;
+    position: relative;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    color: var(--ink);
+}
+.modal::before {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border: 1px solid rgba(120, 85, 45, 0.3);
+    pointer-events: none;
+}
+.modal h2 {
+    font-family: "Cinzel", serif;
+    color: var(--rust);
+    margin: 0 0 12px 0;
+    font-size: 24px;
+    letter-spacing: 0.04em;
+}
+.modal label {
+    display: block;
+    font-family: "Cinzel", serif;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 14px 0 6px 0;
+}
+.modal input[type="text"],
+.modal textarea {
+    width: 100%;
+    background: #fbf3df;
+    border: 1px solid var(--parchment-edge);
+    padding: 10px 12px;
+    border-radius: 3px;
+    font-family: "Crimson Text", "Georgia", serif;
+    font-size: 15px;
+    color: var(--ink);
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.modal input[type="text"]:focus,
+.modal textarea:focus {
+    border-color: var(--rust);
+    box-shadow: 0 0 0 2px rgba(155, 42, 30, 0.15);
+}
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+}
+.error-text {
+    color: var(--rust-dark);
+    font-size: 14px;
+    margin-top: 6px;
+    font-style: italic;
+}
+
+/* ===== Detailansicht ===== */
+.detail-banner {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #000;
+    border-radius: 4px;
+    margin-bottom: 18px;
+    background-color: #130a04;
+    background-image:
+        radial-gradient(ellipse at 20% 30%, rgba(155, 42, 30, 0.45), transparent 55%),
+        radial-gradient(ellipse at 80% 70%, rgba(194, 160, 83, 0.25), transparent 55%),
+        repeating-linear-gradient(
+            45deg,
+            rgba(255, 255, 255, 0.02) 0 2px,
+            transparent 2px 6px
+        ),
+        linear-gradient(180deg, #2a1a0d 0%, #0e0804 100%);
+    padding: 30px 28px 24px 28px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(194, 160, 83, 0.25) inset;
+}
+.detail-banner::after {
+    content: "";
+    position: absolute;
+    left: 28px;
+    right: 28px;
+    bottom: 14px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--rust) 30%, var(--rust) 70%, transparent);
+}
+.detail-banner h1 {
+    font-family: "Cinzel", serif;
+    font-weight: 700;
+    color: #f1dca2;
+    font-size: clamp(28px, 4vw, 44px);
+    margin: 0;
+    letter-spacing: 0.05em;
+    text-shadow: 0 2px 0 #000;
+}
+.detail-banner .kicker {
+    font-family: "Cinzel", serif;
+    color: var(--rust-glow);
+    font-size: 11px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+.detail-banner .banner-actions {
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    display: flex;
+    gap: 8px;
+}
+.detail-banner .banner-actions button {
+    font-family: "Cinzel", serif;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.35);
+    color: #d7bd7a;
+    border: 1px solid rgba(194, 160, 83, 0.4);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.detail-banner .banner-actions button:hover {
+    border-color: var(--gold);
+    color: #f1dca2;
+}
+.detail-banner .banner-actions button.danger {
+    color: #f3a8a0;
+    border-color: rgba(192, 78, 63, 0.4);
+}
+.detail-banner .banner-actions button.danger:hover {
+    border-color: var(--rust-glow);
+    background: rgba(155, 42, 30, 0.2);
+}
+
+.detail-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid rgba(194, 160, 83, 0.25);
+}
+.detail-tabs .tab {
+    font-family: "Cinzel", serif;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #a99573;
+    padding: 10px 14px;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+.detail-tabs .tab.active {
+    color: #f1dca2;
+    border-bottom-color: var(--rust);
+}
+.detail-tabs .tab:disabled {
+    color: #665a44;
+    cursor: not-allowed;
+}
+
+/* Beschreibung-Box im Pergament-Look (kompakte Variante) */
+.detail-description {
+    margin-bottom: 18px;
+    padding: 16px 18px;
+    background-color: var(--parchment);
+    background-image: linear-gradient(135deg, var(--parchment), var(--parchment-dark));
+    color: var(--ink);
+    border: 1px solid var(--parchment-edge);
+    border-radius: 3px;
+    position: relative;
+    box-shadow:
+        0 0 0 1px rgba(90, 60, 25, 0.25) inset,
+        0 4px 10px rgba(0, 0, 0, 0.35);
+    font-size: 16px;
+    line-height: 1.5;
+}
+.detail-description::before {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border: 1px solid rgba(120, 85, 45, 0.3);
+    pointer-events: none;
+}
+.detail-description .label {
+    font-family: "Cinzel", serif;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 6px;
+}
+
+/* Section Header (zb "Zugewiesene Karten") */
+.section-title {
+    font-family: "Cinzel", serif;
+    color: #e6c56a;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-size: 14px;
+    margin: 20px 0 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.section-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(194, 160, 83, 0.4), transparent);
+}
+
+/* Map-Listeneintrag */
+.map-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    background-color: var(--parchment);
+    background-image: linear-gradient(135deg, var(--parchment), var(--parchment-dark));
+    color: var(--ink);
+    border: 1px solid var(--parchment-edge);
+    border-radius: 3px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.map-row .left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+.map-row .left .name {
+    font-family: "Cinzel", serif;
+    font-weight: 600;
+    color: var(--rust);
+    font-size: 16px;
+    letter-spacing: 0.02em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.map-row .right {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.map-row a.open-link {
+    font-family: "Cinzel", serif;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--rust-dark);
+    border: 1px solid var(--rust-dark);
+    padding: 6px 12px;
+    border-radius: 3px;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+.map-row a.open-link:hover { background: rgba(155, 42, 30, 0.08); }
+.map-row .remove-btn {
+    font-family: "Cinzel", serif;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    background: transparent;
+    border: 1px solid var(--parchment-edge);
+    padding: 6px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.map-row .remove-btn:hover { color: var(--rust-dark); border-color: var(--rust-dark); }
+
+/* Map-Adder: Select + Button */
+.add-map-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px dashed rgba(194, 160, 83, 0.35);
+    border-radius: 3px;
+}
+.add-map-row select {
+    flex: 1;
+    background: #1b120a;
+    color: #e6c56a;
+    border: 1px solid rgba(194, 160, 83, 0.4);
+    padding: 8px 10px;
+    border-radius: 3px;
+    font-family: "Crimson Text", "Georgia", serif;
+    font-size: 14px;
+}
+.add-map-row select:focus { outline: none; border-color: var(--gold); }
+
+/* Confirm dialog Buttons */
+.confirm-msg {
+    font-size: 15px;
+    margin-bottom: 4px;
+    color: var(--ink-soft);
+}
+
+/* kleine Hilfetexte */
+.muted {
+    color: #cbb989;
+    font-style: italic;
+    font-size: 14px;
+}
+
+/* Fehlerbanner oben */
+.load-error {
+    background: rgba(155, 42, 30, 0.25);
+    border: 1px solid var(--rust);
+    color: #f6d4ce;
+    padding: 10px 14px;
+    border-radius: 3px;
+    margin-bottom: 14px;
+    font-style: italic;
+}
+
+/* Spinner / Ladezustand */
+.loading {
+    text-align: center;
+    padding: 40px 0;
+    color: #cbb989;
+    font-family: "Cinzel", serif;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 12px;
+}
