@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import apiService, { Campaign, MapListItem } from "../modules/api";
+import apiService, { Campaign, MapListItem, PlayerRef, UserHit } from "../modules/api";
 import "./campaigns.css";
+import "./game.css";
 
 type Tab = "maps" | "players";
 
@@ -34,11 +35,8 @@ const CampaignDetailPage: React.FC = () => {
         }
     }, [id]);
 
-    useEffect(() => {
-        void load();
-    }, [load]);
+    useEffect(() => { void load(); }, [load]);
 
-    // Map-Lookup nach Id
     const mapById = useMemo(() => {
         const m = new Map<string, MapListItem>();
         (maps || []).forEach((it) => m.set(it._id, it));
@@ -58,8 +56,10 @@ const CampaignDetailPage: React.FC = () => {
         return maps.filter((m) => !assigned.has(m._id));
     }, [campaign, maps]);
 
+    const isOwner = campaign?.role === "owner";
+
     const removeMap = async (mid: string) => {
-        if (!campaign) return;
+        if (!campaign || !isOwner) return;
         setMutationError(null);
         try {
             const next = campaign.mapIds.filter((x) => x !== mid);
@@ -73,7 +73,7 @@ const CampaignDetailPage: React.FC = () => {
     };
 
     const addMap = async () => {
-        if (!campaign || !addMapId) return;
+        if (!campaign || !addMapId || !isOwner) return;
         setMutationError(null);
         try {
             const next = [...campaign.mapIds, addMapId];
@@ -85,6 +85,32 @@ const CampaignDetailPage: React.FC = () => {
         } catch (e: any) {
             setMutationError(e?.msg || "Hinzufügen fehlgeschlagen.");
         }
+    };
+
+    const addPlayer = async (userId: string) => {
+        if (!campaign || !isOwner) return;
+        setMutationError(null);
+        try {
+            const { campaign: updated } = await apiService.addPlayer(campaign._id, userId);
+            setCampaign(updated);
+        } catch (e: any) {
+            setMutationError(e?.msg || "Spieler konnte nicht hinzugefügt werden.");
+        }
+    };
+
+    const removePlayer = async (userId: string) => {
+        if (!campaign || !isOwner) return;
+        setMutationError(null);
+        try {
+            const { campaign: updated } = await apiService.removePlayer(campaign._id, userId);
+            setCampaign(updated);
+        } catch (e: any) {
+            setMutationError(e?.msg || "Spieler konnte nicht entfernt werden.");
+        }
+    };
+
+    const onMapUploaded = async () => {
+        await load();
     };
 
     if (loadError) {
@@ -119,13 +145,36 @@ const CampaignDetailPage: React.FC = () => {
                 </div>
 
                 <div className="detail-banner">
-                    <div className="kicker">Kampagne</div>
+                    <div className="kicker">
+                        {isOwner ? "Kampagne — Spielleiter" : "Kampagne — Spieler"}
+                    </div>
                     <h1>{campaign.name}</h1>
                     <div className="banner-actions">
-                        <button onClick={() => setShowEdit(true)}>Bearbeiten</button>
-                        <button className="danger" onClick={() => setShowDelete(true)}>
-                            Löschen
-                        </button>
+                        <Link
+                            to={`/kampagnen/${campaign._id}/spiel`}
+                            style={{
+                                fontFamily: "Cinzel, serif",
+                                fontSize: 11,
+                                letterSpacing: "0.14em",
+                                textTransform: "uppercase",
+                                padding: "6px 12px",
+                                borderRadius: 3,
+                                background: "rgba(155, 42, 30, 0.35)",
+                                color: "#f6e6c6",
+                                border: "1px solid #4a0f08",
+                                textDecoration: "none",
+                            }}
+                        >
+                            Spielbrett
+                        </Link>
+                        {isOwner && (
+                            <>
+                                <button onClick={() => setShowEdit(true)}>Bearbeiten</button>
+                                <button className="danger" onClick={() => setShowDelete(true)}>
+                                    Löschen
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -137,11 +186,10 @@ const CampaignDetailPage: React.FC = () => {
                         Karten ({campaign.mapIds.length})
                     </button>
                     <button
-                        className="tab"
-                        disabled
-                        title="Rollen/Spieler-Einladungen kommen später."
+                        className={`tab ${tab === "players" ? "active" : ""}`}
+                        onClick={() => setTab("players")}
                     >
-                        Spieler
+                        Spieler ({campaign.players.length})
                     </button>
                 </div>
 
@@ -161,8 +209,9 @@ const CampaignDetailPage: React.FC = () => {
                             <div className="loading">Lade Karten &hellip;</div>
                         ) : assignedMaps.length === 0 ? (
                             <div className="muted" style={{ padding: "6px 2px 10px" }}>
-                                Noch keine Karten zugewiesen &mdash; füge unten eine
-                                hinzu.
+                                {isOwner
+                                    ? "Noch keine Karten zugewiesen — füge unten eine hinzu."
+                                    : "Noch keine Karten zugewiesen."}
                             </div>
                         ) : (
                             <div>
@@ -170,79 +219,102 @@ const CampaignDetailPage: React.FC = () => {
                                     <div key={m._id} className="map-row">
                                         <div className="left">
                                             <span className="pill light">
-                                                {m.isExample ? "Beispiel" : "Eigene"}
+                                                {m.kind === "2d-image" ? "Bild" : (m.isExample ? "Beispiel" : "3D")}
                                             </span>
                                             <span className="name">{m.name}</span>
                                         </div>
                                         <div className="right">
-                                            <a
-                                                className="open-link"
-                                                href={`/bilder/?map=${m._id}`}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                            >
-                                                Im Builder öffnen
-                                            </a>
-                                            <button
-                                                className="remove-btn"
-                                                onClick={() => removeMap(m._id)}
-                                            >
-                                                Entfernen
-                                            </button>
+                                            {m.kind !== "2d-image" && (
+                                                <a
+                                                    className="open-link"
+                                                    href={`/bilder/?map=${m._id}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    Im Builder öffnen
+                                                </a>
+                                            )}
+                                            {isOwner && (
+                                                <button
+                                                    className="remove-btn"
+                                                    onClick={() => removeMap(m._id)}
+                                                >
+                                                    Entfernen
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         )}
 
-                        {availableMaps.length > 0 && (
+                        {isOwner && (
                             <>
-                                <div className="section-title">Karte hinzufügen</div>
-                                <div className="add-map-row">
-                                    <select
-                                        value={addMapId}
-                                        onChange={(e) => setAddMapId(e.target.value)}
-                                    >
-                                        <option value="">
-                                            &mdash; Karte auswählen &mdash;
-                                        </option>
-                                        {availableMaps.map((m) => (
-                                            <option key={m._id} value={m._id}>
-                                                {m.name}
-                                                {m.isExample ? " (Beispiel)" : ""}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <button
-                                        className="btn-rust"
-                                        onClick={addMap}
-                                        disabled={!addMapId}
-                                    >
-                                        Hinzufügen
-                                    </button>
-                                </div>
+                                {availableMaps.length > 0 && (
+                                    <>
+                                        <div className="section-title">Karte hinzufügen</div>
+                                        <div className="add-map-row">
+                                            <select
+                                                value={addMapId}
+                                                onChange={(e) => setAddMapId(e.target.value)}
+                                            >
+                                                <option value="">
+                                                    &mdash; Karte auswählen &mdash;
+                                                </option>
+                                                {availableMaps.map((m) => (
+                                                    <option key={m._id} value={m._id}>
+                                                        {m.name}
+                                                        {m.kind === "2d-image"
+                                                            ? " (Bild)"
+                                                            : m.isExample
+                                                            ? " (Beispiel)"
+                                                            : ""}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                className="btn-rust"
+                                                onClick={addMap}
+                                                disabled={!addMapId}
+                                            >
+                                                Hinzufügen
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                                <div className="section-title">Bild als Karte hochladen</div>
+                                <UploadImageRow onUploaded={onMapUploaded} />
+                                {maps !== null && availableMaps.length === 0 && (
+                                    <div className="muted" style={{ marginTop: 10 }}>
+                                        Alle verfügbaren Karten sind bereits zugewiesen.
+                                        Lege im{" "}
+                                        <a
+                                            href="/bilder/"
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{ color: "#e6c56a" }}
+                                        >
+                                            Builder
+                                        </a>{" "}
+                                        eine neue an oder lade oben ein Bild hoch.
+                                    </div>
+                                )}
                             </>
-                        )}
-                        {maps !== null && availableMaps.length === 0 && (
-                            <div className="muted" style={{ marginTop: 10 }}>
-                                Alle verfügbaren Karten sind bereits zugewiesen.
-                                Lege im{" "}
-                                <a
-                                    href="/bilder/"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{ color: "#e6c56a" }}
-                                >
-                                    Builder
-                                </a>{" "}
-                                eine neue an.
-                            </div>
                         )}
                     </>
                 )}
+
+                {tab === "players" && (
+                    <PlayersTab
+                        campaign={campaign}
+                        isOwner={!!isOwner}
+                        onAdd={addPlayer}
+                        onRemove={removePlayer}
+                    />
+                )}
             </div>
 
-            {showEdit && (
+            {showEdit && isOwner && (
                 <EditCampaignDialog
                     campaign={campaign}
                     onCancel={() => setShowEdit(false)}
@@ -252,7 +324,7 @@ const CampaignDetailPage: React.FC = () => {
                     }}
                 />
             )}
-            {showDelete && (
+            {showDelete && isOwner && (
                 <DeleteDialog
                     name={campaign.name}
                     onCancel={() => setShowDelete(false)}
@@ -266,7 +338,185 @@ const CampaignDetailPage: React.FC = () => {
     );
 };
 
-// --- Hilfs-Dialoge ---
+// --- Hilfs-Komponenten ---
+
+interface UploadRowProps {
+    onUploaded: () => void | Promise<void>;
+}
+const UploadImageRow: React.FC<UploadRowProps> = ({ onUploaded }) => {
+    const [file, setFile] = useState<File | null>(null);
+    const [name, setName] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const submit = async () => {
+        setError(null);
+        if (!file) { setError("Bitte wähle ein Bild."); return; }
+        const n = name.trim();
+        if (!n) { setError("Bitte gib einen Namen an."); return; }
+        if (file.size > 15 * 1024 * 1024) {
+            setError("Maximal 15 MB.");
+            return;
+        }
+        setBusy(true);
+        try {
+            await apiService.uploadMapImage(file, n);
+            setFile(null);
+            setName("");
+            await onUploaded();
+        } catch (e: any) {
+            setError(e?.msg || "Upload fehlgeschlagen.");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div className="add-map-row" style={{ flexWrap: "wrap" }}>
+            <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    setFile(f);
+                    if (f && !name) setName(f.name.replace(/\.[^.]+$/, ""));
+                }}
+                style={{ color: "#e6c56a" }}
+            />
+            <input
+                type="text"
+                value={name}
+                placeholder="Name der Karte"
+                onChange={(e) => setName(e.target.value)}
+                maxLength={80}
+                style={{
+                    flex: 1,
+                    background: "#1b120a",
+                    color: "#e6c56a",
+                    border: "1px solid rgba(194, 160, 83, 0.4)",
+                    padding: "8px 10px",
+                    borderRadius: 3,
+                    fontFamily: "Crimson Text, Georgia, serif",
+                    fontSize: 14,
+                }}
+            />
+            <button className="btn-rust" onClick={submit} disabled={busy || !file}>
+                {busy ? "..." : "Hochladen"}
+            </button>
+            {error && <div className="error-text" style={{ width: "100%" }}>{error}</div>}
+        </div>
+    );
+};
+
+interface PlayersTabProps {
+    campaign: Campaign;
+    isOwner: boolean;
+    onAdd: (id: string) => Promise<void>;
+    onRemove: (id: string) => Promise<void>;
+}
+const PlayersTab: React.FC<PlayersTabProps> = ({ campaign, isOwner, onAdd, onRemove }) => {
+    const [q, setQ] = useState("");
+    const [hits, setHits] = useState<UserHit[] | null>(null);
+    const [searching, setSearching] = useState(false);
+    const [focused, setFocused] = useState(false);
+
+    useEffect(() => {
+        if (!isOwner) return;
+        if (!focused) return;
+        let cancelled = false;
+        setSearching(true);
+        const handle = setTimeout(async () => {
+            try {
+                const { users } = await apiService.searchUsers(q);
+                if (!cancelled) setHits(users);
+            } finally {
+                if (!cancelled) setSearching(false);
+            }
+        }, 180);
+        return () => { cancelled = true; clearTimeout(handle); };
+    }, [q, focused, isOwner]);
+
+    const already = new Set(campaign.players.map((p: PlayerRef) => p._id));
+    const filteredHits = (hits || []).filter(
+        (u) => !already.has(u._id) && u._id !== campaign.owner
+    );
+
+    return (
+        <>
+            <div className="section-title">Mitspielende</div>
+            {campaign.players.length === 0 ? (
+                <div className="muted" style={{ padding: "6px 2px 10px" }}>
+                    {isOwner
+                        ? "Noch keine Spieler hinzugefügt — such unten einen User."
+                        : "Noch keine weiteren Mitspielenden."}
+                </div>
+            ) : (
+                campaign.players.map((p) => (
+                    <div key={p._id} className="player-row">
+                        <div className="name">{p.username}</div>
+                        {isOwner && (
+                            <button
+                                className="remove-btn"
+                                onClick={() => onRemove(p._id)}
+                                style={{
+                                    fontFamily: "Cinzel, serif",
+                                    fontSize: 11,
+                                    letterSpacing: "0.14em",
+                                    textTransform: "uppercase",
+                                    padding: "6px 10px",
+                                    border: "1px solid var(--parchment-edge, #a8906a)",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Entfernen
+                            </button>
+                        )}
+                    </div>
+                ))
+            )}
+
+            {isOwner && (
+                <>
+                    <div className="section-title">Spieler hinzufügen</div>
+                    <div className="player-search" style={{ position: "relative" }}>
+                        <input
+                            type="text"
+                            placeholder="Nach Username suchen &hellip;"
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                            onFocus={() => setFocused(true)}
+                            onBlur={() => setTimeout(() => setFocused(false), 150)}
+                        />
+                        {focused && (
+                            <div className="player-results" style={{ top: "100%", left: 0 }}>
+                                {searching && hits === null && (
+                                    <div className="empty">Suche &hellip;</div>
+                                )}
+                                {hits !== null && filteredHits.length === 0 && (
+                                    <div className="empty">Keine passenden User.</div>
+                                )}
+                                {filteredHits.map((u) => (
+                                    <div
+                                        className="hit"
+                                        key={u._id}
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            void onAdd(u._id);
+                                            setQ("");
+                                        }}
+                                    >
+                                        {u.username}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+        </>
+    );
+};
 
 interface EditProps {
     campaign: Campaign;

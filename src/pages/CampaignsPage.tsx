@@ -122,20 +122,24 @@ const CampaignsPage: React.FC = () => {
                                         {c.mapIds.length}{" "}
                                         {c.mapIds.length === 1 ? "Karte" : "Karten"}
                                     </span>
-                                    <div className="card-actions">
-                                        <button
-                                            className="btn-ghost"
-                                            onClick={() => openEdit(c)}
-                                        >
-                                            Bearbeiten
-                                        </button>
-                                        <button
-                                            className="btn-ghost danger"
-                                            onClick={() => openDelete(c)}
-                                        >
-                                            Löschen
-                                        </button>
-                                    </div>
+                                    {c.role === "player" ? (
+                                        <span className="pill player-role">Spieler</span>
+                                    ) : (
+                                        <div className="card-actions">
+                                            <button
+                                                className="btn-ghost"
+                                                onClick={() => openEdit(c)}
+                                            >
+                                                Bearbeiten
+                                            </button>
+                                            <button
+                                                className="btn-ghost danger"
+                                                onClick={() => openDelete(c)}
+                                            >
+                                                Löschen
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </article>
                         ))}

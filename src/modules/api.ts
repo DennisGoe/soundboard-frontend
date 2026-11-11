@@ -24,10 +24,17 @@ export interface UserSchema {
     username: string;
 }
 
-// REACT_APP_API_URL erlaubt lokales Testen gegen ein eigenes Backend
-// (z.B. REACT_APP_API_URL=http://localhost:3000 npm start). Produktion
-// faellt weiterhin auf das Render-Backend zurueck.
-const url = process.env.REACT_APP_API_URL || 'https://soundboard-backend.onrender.com';
+// window.__API_BASE_URL__ (zur Laufzeit per <script> injizierbar, zb von
+// headless-verify-Skripten) hat Vorrang. Danach REACT_APP_API_URL (Build-Zeit).
+// Fallback: Render-Prod-Backend.
+const runtimeOverride =
+    typeof window !== 'undefined'
+        ? ((window as any).__API_BASE_URL__ as string | undefined)
+        : undefined;
+const url =
+    runtimeOverride ||
+    process.env.REACT_APP_API_URL ||
+    'https://soundboard-backend.onrender.com';
 export const BASE_URL = url;
 
 const api = axios.create({
@@ -146,6 +153,20 @@ const apiService = {
         return handleRequest(api.get<{ maps: MapListItem[] }>('/api/maps'));
     },
 
+    uploadMapImage: async (
+        file: File,
+        name: string
+    ): Promise<{ map: MapListItem }> => {
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('name', name);
+        return handleRequest(
+            api.post<{ map: MapListItem }>('/api/maps/upload-2d', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            })
+        );
+    },
+
     listCampaigns: async (): Promise<{ campaigns: Campaign[] }> => {
         return handleRequest(api.get<{ campaigns: Campaign[] }>('/api/campaigns'));
     },
@@ -158,12 +179,44 @@ const apiService = {
         return handleRequest(api.post<{ campaign: Campaign }>('/api/campaigns', body));
     },
 
-    updateCampaign: async (id: string, body: Partial<CampaignInput>): Promise<{ campaign: Campaign }> => {
+    updateCampaign: async (
+        id: string,
+        body: Partial<CampaignInput>
+    ): Promise<{ campaign: Campaign }> => {
         return handleRequest(api.put<{ campaign: Campaign }>(`/api/campaigns/${id}`, body));
     },
 
     deleteCampaign: async (id: string): Promise<{ msg: string }> => {
         return handleRequest(api.delete<{ msg: string }>(`/api/campaigns/${id}`));
+    },
+
+    addPlayer: async (campaignId: string, userId: string): Promise<{ campaign: Campaign }> => {
+        return handleRequest(
+            api.post<{ campaign: Campaign }>(`/api/campaigns/${campaignId}/players`, { userId })
+        );
+    },
+
+    removePlayer: async (campaignId: string, userId: string): Promise<{ campaign: Campaign }> => {
+        return handleRequest(
+            api.delete<{ campaign: Campaign }>(`/api/campaigns/${campaignId}/players/${userId}`)
+        );
+    },
+
+    setActiveMap: async (campaignId: string, mapId: string | null): Promise<{ campaign: Campaign }> => {
+        return handleRequest(
+            api.put<{ campaign: Campaign }>(`/api/campaigns/${campaignId}/active-map`, { mapId })
+        );
+    },
+
+    getChat: async (campaignId: string): Promise<{ messages: ChatMessage[] }> => {
+        return handleRequest(
+            api.get<{ messages: ChatMessage[] }>(`/api/campaigns/${campaignId}/chat`)
+        );
+    },
+
+    searchUsers: async (q: string): Promise<{ users: UserHit[] }> => {
+        const query = q ? `?q=${encodeURIComponent(q)}` : '';
+        return handleRequest(api.get<{ users: UserHit[] }>(`/api/users${query}`));
     },
 };
 
@@ -172,8 +225,15 @@ export interface MapListItem {
     name: string;
     owner: string | null;
     isExample: boolean;
+    kind?: '3d' | '2d-image';
+    imageUrl?: string | null;
     createdAt: string;
     updatedAt: string;
+}
+
+export interface PlayerRef {
+    _id: string;
+    username: string;
 }
 
 export interface Campaign {
@@ -181,7 +241,10 @@ export interface Campaign {
     name: string;
     description: string;
     owner: string;
+    players: PlayerRef[];
     mapIds: string[];
+    activeMapId: string | null;
+    role: 'owner' | 'player';
     createdAt: string;
     updatedAt: string;
 }
@@ -190,6 +253,21 @@ export interface CampaignInput {
     name: string;
     description?: string;
     mapIds?: string[];
+    players?: string[];
+}
+
+export interface ChatMessage {
+    _id: string;
+    userId: string;
+    username: string;
+    text: string;
+    createdAt: string;
+    campaignId?: string;
+}
+
+export interface UserHit {
+    _id: string;
+    username: string;
 }
 
 export default apiService;
