@@ -280,6 +280,9 @@
     border-radius: 999px;
     border: 1px solid #000;
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+    white-space: nowrap;
+    flex-shrink: 0;
+    width: max-content;
 }
 .pill.light {
     background: #f6e9c7;

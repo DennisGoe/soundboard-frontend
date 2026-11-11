@@ -71,7 +71,7 @@ const CampaignsPage: React.FC = () => {
                     </div>
                     <p className="sub">
                         Sammle deine Karten zu Abenteuern. Jede Kampagne ist eine
-                        Mappe aus Schauplaetzen, die du spaeter deinen Spielern
+                        Mappe aus Schauplätzen, die du später deinen Spielern
                         vorsetzt.
                     </p>
                 </header>
@@ -133,7 +133,7 @@ const CampaignsPage: React.FC = () => {
                                             className="btn-ghost danger"
                                             onClick={() => openDelete(c)}
                                         >
-                                            Loeschen
+                                            Löschen
                                         </button>
                                     </div>
                                 </div>
@@ -276,16 +276,16 @@ const ConfirmDeleteDialog: React.FC<ConfirmDeleteDialogProps> = ({ name, onCance
         try {
             await onConfirm();
         } catch (e: any) {
-            setError(e?.msg || "Loeschen fehlgeschlagen.");
+            setError(e?.msg || "Löschen fehlgeschlagen.");
             setWorking(false);
         }
     };
     return (
         <div className="modal-backdrop" onClick={onCancel}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
-                <h2>Kampagne loeschen?</h2>
+                <h2>Kampagne löschen?</h2>
                 <p className="confirm-msg">
-                    &bdquo;{name}&ldquo; wird endgueltig geloescht. Die
+                    &bdquo;{name}&ldquo; wird endgültig gelöscht. Die
                     zugewiesenen Karten bleiben erhalten.
                 </p>
                 {error && <div className="error-text">{error}</div>}
@@ -294,7 +294,7 @@ const ConfirmDeleteDialog: React.FC<ConfirmDeleteDialogProps> = ({ name, onCance
                         Abbrechen
                     </button>
                     <button className="btn-rust" onClick={confirm} disabled={working}>
-                        {working ? "..." : "Loeschen"}
+                        {working ? "..." : "Löschen"}
                     </button>
                 </div>
             </div>

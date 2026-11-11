@@ -83,7 +83,7 @@ const CampaignDetailPage: React.FC = () => {
             setCampaign(updated);
             setAddMapId("");
         } catch (e: any) {
-            setMutationError(e?.msg || "Hinzufuegen fehlgeschlagen.");
+            setMutationError(e?.msg || "Hinzufügen fehlgeschlagen.");
         }
     };
 
@@ -124,7 +124,7 @@ const CampaignDetailPage: React.FC = () => {
                     <div className="banner-actions">
                         <button onClick={() => setShowEdit(true)}>Bearbeiten</button>
                         <button className="danger" onClick={() => setShowDelete(true)}>
-                            Loeschen
+                            Löschen
                         </button>
                     </div>
                 </div>
@@ -139,7 +139,7 @@ const CampaignDetailPage: React.FC = () => {
                     <button
                         className="tab"
                         disabled
-                        title="Rollen/Spieler-Einladungen kommen spaeter."
+                        title="Rollen/Spieler-Einladungen kommen später."
                     >
                         Spieler
                     </button>
@@ -161,7 +161,7 @@ const CampaignDetailPage: React.FC = () => {
                             <div className="loading">Lade Karten &hellip;</div>
                         ) : assignedMaps.length === 0 ? (
                             <div className="muted" style={{ padding: "6px 2px 10px" }}>
-                                Noch keine Karten zugewiesen &mdash; fuege unten eine
+                                Noch keine Karten zugewiesen &mdash; füge unten eine
                                 hinzu.
                             </div>
                         ) : (
@@ -181,7 +181,7 @@ const CampaignDetailPage: React.FC = () => {
                                                 target="_blank"
                                                 rel="noreferrer"
                                             >
-                                                Im Builder oeffnen
+                                                Im Builder öffnen
                                             </a>
                                             <button
                                                 className="remove-btn"
@@ -197,14 +197,14 @@ const CampaignDetailPage: React.FC = () => {
 
                         {availableMaps.length > 0 && (
                             <>
-                                <div className="section-title">Karte hinzufuegen</div>
+                                <div className="section-title">Karte hinzufügen</div>
                                 <div className="add-map-row">
                                     <select
                                         value={addMapId}
                                         onChange={(e) => setAddMapId(e.target.value)}
                                     >
                                         <option value="">
-                                            &mdash; Karte auswaehlen &mdash;
+                                            &mdash; Karte auswählen &mdash;
                                         </option>
                                         {availableMaps.map((m) => (
                                             <option key={m._id} value={m._id}>
@@ -218,14 +218,14 @@ const CampaignDetailPage: React.FC = () => {
                                         onClick={addMap}
                                         disabled={!addMapId}
                                     >
-                                        Hinzufuegen
+                                        Hinzufügen
                                     </button>
                                 </div>
                             </>
                         )}
                         {maps !== null && availableMaps.length === 0 && (
                             <div className="muted" style={{ marginTop: 10 }}>
-                                Alle verfuegbaren Karten sind bereits zugewiesen.
+                                Alle verfügbaren Karten sind bereits zugewiesen.
                                 Lege im{" "}
                                 <a
                                     href="/bilder/"
@@ -342,16 +342,16 @@ const DeleteDialog: React.FC<DelProps> = ({ name, onCancel, onConfirm }) => {
         try {
             await onConfirm();
         } catch (e: any) {
-            setError(e?.msg || "Loeschen fehlgeschlagen.");
+            setError(e?.msg || "Löschen fehlgeschlagen.");
             setWorking(false);
         }
     };
     return (
         <div className="modal-backdrop" onClick={onCancel}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
-                <h2>Kampagne loeschen?</h2>
+                <h2>Kampagne löschen?</h2>
                 <p className="confirm-msg">
-                    &bdquo;{name}&ldquo; wird endgueltig geloescht. Die
+                    &bdquo;{name}&ldquo; wird endgültig gelöscht. Die
                     zugewiesenen Karten bleiben erhalten.
                 </p>
                 {error && <div className="error-text">{error}</div>}
@@ -360,7 +360,7 @@ const DeleteDialog: React.FC<DelProps> = ({ name, onCancel, onConfirm }) => {
                         Abbrechen
                     </button>
                     <button className="btn-rust" onClick={confirm} disabled={working}>
-                        {working ? "..." : "Loeschen"}
+                        {working ? "..." : "Löschen"}
                     </button>
                 </div>
             </div>
