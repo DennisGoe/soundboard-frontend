@@ -32,7 +32,9 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "react-scripts build && npm --prefix bilder ci && npm --prefix bilder run build",
+    "build:fe": "react-scripts build",
+    "build:bilder": "npm --prefix bilder ci && npm --prefix bilder run build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },

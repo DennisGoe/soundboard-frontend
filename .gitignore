@@ -5,6 +5,11 @@
 /.pnp
 .pnp.js
 
+# bilder/ sub-app (D&D-Builder, eigenes Vite-Projekt)
+/bilder/node_modules
+/bilder/dist
+/bilder/.vite
+
 # testing
 /coverage
 

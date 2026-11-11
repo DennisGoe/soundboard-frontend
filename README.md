@@ -46,6 +46,29 @@ src/
 
 
 
+## 🗺️ D&D-Builder unter `/bilder`
+
+Dieses Repo enthaelt zusaetzlich einen Three.js/Vite-Builder (D&D-Welt)
+als Sub-App unter dem Ordner [`bilder/`](./bilder). Deployed wird er unter
+der Route `/bilder/` derselben Static Site (kein eigener Service, kein Link
+im Soundboard — nur per direkter URL erreichbar, `noindex`).
+
+```bash
+# Dev (Vite dev-server, Port 5173)
+cd bilder && npm install
+npm run dev
+
+# Build (manuell, nur Builder)
+npm --prefix bilder run build         # -> build/bilder/
+
+# Full-Build (CRA + Builder, das macht Render auto-matisch)
+npm run build                         # react-scripts build && vite build
+```
+
+Routing: `public/_redirects` leitet `/bilder` und `/bilder/*` auf
+`/bilder/index.html` um, `/*` weiter auf die React-SPA. Als Fallback gibt
+es in `CustomRouter` eine `/bilder`-Route, die hart auf `/bilder/` umlenkt.
+
 ## 🧑‍💻 Author
 
 **Dennis G.** — Lead Frontend Developer  
