@@ -13,7 +13,7 @@ const { chromium } = require(process.env.HOME + '/Desktop/repos/video-app/node_m
 const fs = require('fs');
 const path = require('path');
 
-const URL = 'http://127.0.0.1:5199/?edit=1';
+const URL = process.env.TEST_URL || 'http://127.0.0.1:5199/?edit=1';
 const SHOT_DIR = path.join(__dirname, '..', 'docs');
 
 function log(step, ok, extra = '') {

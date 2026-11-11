@@ -587,6 +587,16 @@ const loadStart = performance.now();
     editor.applyProcOverridesToScene();
 
     if (QS.has('edit')) editor.setEditMode(true);
+
+    // Karten-Panel: Liste + Open/Rename/Delete + Autosave ins Soundboard-BE.
+    // Lädt lazy, damit dynamic-import nicht den Haupt-Chunk vergroessert.
+    try {
+      const { MapsPanel } = await import('./editor/mapsPanel.js');
+      const mapsPanel = new MapsPanel({ editor, container });
+      window.__mapsPanel = mapsPanel;
+    } catch (e) {
+      console.warn('[main] MapsPanel failed to mount:', e);
+    }
   }
   // Kompakt und pruefbar: Gaerten + Top-Deko-Pools im Log.
   console.log('[dnd-world] Szene bereit:', {

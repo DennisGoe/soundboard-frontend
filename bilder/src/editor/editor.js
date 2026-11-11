@@ -201,6 +201,10 @@ export class Editor {
         saveToStorage(this.doc);
         this._dirty = false;
         this._saveTimer = null;
+        // Backend-Autosave (MapsPanel klinkt sich hier ein).
+        if (typeof this.onDocPersistedToStorage === 'function') {
+          try { this.onDocPersistedToStorage(this.doc); } catch (e) { /* ignore */ }
+        }
       }, 500);
     }
   }
