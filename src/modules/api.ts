@@ -169,6 +169,29 @@ const apiService = {
         return handleRequest(api.delete<{ msg: string }>(`/api/maps/${id}`));
     },
 
+    // ---------- User-Assets (eigene Stempel) ----------
+    listAssets: async (): Promise<{ assets: UserAssetDoc[] }> => {
+        return handleRequest(api.get<{ assets: UserAssetDoc[] }>('/api/assets'));
+    },
+    uploadAsset: async (file: File, meta: { name: string; category?: string; tags?: string[]; width?: number; height?: number }): Promise<{ asset: UserAssetDoc }> => {
+        const fd = new FormData();
+        fd.append('image', file);
+        fd.append('name', meta.name);
+        if (meta.category) fd.append('category', meta.category);
+        if (meta.tags && meta.tags.length) fd.append('tags', meta.tags.join(','));
+        if (meta.width !== undefined) fd.append('width', String(meta.width));
+        if (meta.height !== undefined) fd.append('height', String(meta.height));
+        return handleRequest(api.post<{ asset: UserAssetDoc }>('/api/assets/upload', fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        }));
+    },
+    updateAsset: async (id: string, patch: { name?: string; category?: string; tags?: string[] }): Promise<{ asset: UserAssetDoc }> => {
+        return handleRequest(api.put<{ asset: UserAssetDoc }>(`/api/assets/${id}`, patch));
+    },
+    deleteAsset: async (id: string): Promise<{ msg: string }> => {
+        return handleRequest(api.delete<{ msg: string }>(`/api/assets/${id}`));
+    },
+
     uploadMapImage: async (
         file: File,
         name: string
@@ -465,6 +488,19 @@ export interface ChatMessage {
     text: string;
     createdAt: string;
     campaignId?: string;
+}
+
+export interface UserAssetDoc {
+    _id: string;
+    owner: string;
+    name: string;
+    category: string;
+    tags: string[];
+    imageUrl: string;
+    width: number;
+    height: number;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface UserHit {

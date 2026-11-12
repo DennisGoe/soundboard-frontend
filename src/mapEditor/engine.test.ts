@@ -9,6 +9,11 @@ import {
     edgeKey,
     floodFill,
     brushCells,
+    brushCellsFalloff,
+    cornerPathToEdges,
+    paintOverlay,
+    pathAt,
+    objectsInRect,
     UndoStack,
     objectAt,
     clone,
@@ -176,5 +181,84 @@ describe('normalizeDoc', () => {
     test('alte floor-Groesse falsch -> wird resetted', () => {
         const n = normalizeDoc({ width: 4, height: 4, floor: [1, 2, 3] });
         expect(n.floor.length).toBe(16);
+    });
+    test('Runde-2-Doc OHNE overlay/paths -> bekommt leere Arrays', () => {
+        const n = normalizeDoc({ width: 4, height: 4, floor: new Array(16).fill(0), walls: [], objects: [], labels: [] });
+        expect(n.overlay?.length).toBe(16);
+        expect(n.overlayMat?.length).toBe(16);
+        expect(n.paths).toEqual([]);
+    });
+    test('neue Objekt-Felder (sizeX,sizeY,flipX,layer) bleiben erhalten', () => {
+        const n = normalizeDoc({
+            width: 4, height: 4, floor: new Array(16).fill(0),
+            walls: [], labels: [], objects: [
+                { id: 'a', type: 'house-small', x: 2, y: 2, rot: 0, sizeX: 2.5, sizeY: 2.5, flipX: true, layer: 'below' }
+            ],
+        });
+        expect(n.objects[0].sizeX).toBe(2.5);
+        expect(n.objects[0].flipX).toBe(true);
+        expect(n.objects[0].layer).toBe('below');
+    });
+});
+
+describe('cornerPathToEdges', () => {
+    test('gerade horizontale Strecke -> 3 Einheits-Kanten', () => {
+        const es = cornerPathToEdges([2, 1], [5, 1]);
+        expect(es.length).toBe(3);
+        expect(es[0]).toEqual([[2, 1], [3, 1]]);
+        expect(es[2]).toEqual([[4, 1], [5, 1]]);
+    });
+    test('L-Form zerlegt in horizontal+vertikal', () => {
+        const es = cornerPathToEdges([2, 2], [4, 4]);
+        expect(es.length).toBe(4);
+    });
+});
+
+describe('brushCellsFalloff', () => {
+    test('liefert Falloff pro Zelle (Zentrum=1)', () => {
+        const doc = newDoc(10, 10);
+        const cells = brushCellsFalloff(doc, 5, 5, 2);
+        const center = cells.find((c) => c[0] === 5 && c[1] === 5);
+        expect(center?.[2]).toBe(1);
+        const edge = cells.find((c) => c[0] === 5 && c[1] === 3);
+        expect(edge && edge[2] < 1).toBe(true);
+    });
+});
+
+describe('paintOverlay', () => {
+    test('Alpha wird akkumuliert, Mat gesetzt', () => {
+        const doc = newDoc(4, 4);
+        paintOverlay(doc, 1, 1, 3, 80);
+        paintOverlay(doc, 1, 1, 3, 80);
+        const i = 1 * 4 + 1;
+        expect(doc.overlay![i]).toBe(160);
+        expect(doc.overlayMat![i]).toBe(3);
+    });
+    test('Materialwechsel fadet aus bevor neu eingefaerbt wird', () => {
+        const doc = newDoc(4, 4);
+        paintOverlay(doc, 2, 2, 3, 200);
+        paintOverlay(doc, 2, 2, 5, 150);
+        const i = 2 * 4 + 2;
+        // Alpha wurde reduziert, ggf. gewechselt
+        expect(doc.overlay![i]).toBeLessThan(200);
+    });
+});
+
+describe('pathAt', () => {
+    test('findet Pfad in Breite', () => {
+        const doc = newDoc(10, 10);
+        doc.paths!.push({ id: 'p1', kind: 'road', points: [[1, 1], [8, 1]], width: 1, material: 3 });
+        expect(pathAt(doc, 4, 1.2)?.id).toBe('p1');
+        expect(pathAt(doc, 4, 5)).toBeNull();
+    });
+});
+
+describe('objectsInRect', () => {
+    test('selektiert Objekte im Rechteck', () => {
+        const doc = newDoc(10, 10);
+        doc.objects.push({ id: 'a', type: 'tree', x: 2, y: 2, rot: 0 });
+        doc.objects.push({ id: 'b', type: 'tree', x: 7, y: 7, rot: 0 });
+        const r = objectsInRect(doc, 0, 0, 5, 5);
+        expect(r.map((o) => o.id).sort()).toEqual(['a']);
     });
 });

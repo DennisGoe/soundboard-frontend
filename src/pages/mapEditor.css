@@ -270,3 +270,192 @@
     height: 100%;
     touch-action: none;
 }
+
+/* --- Runde 3d: Kategorien, Suche, erweiterte Panels --- */
+
+.editor-body {
+    grid-template-columns: 320px 1fr 220px;
+}
+.editor-right {
+    overflow-y: auto;
+    background: linear-gradient(180deg, #1b120a 0%, #150c06 100%);
+    border-left: 1px solid #000;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.category-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+.cat-btn {
+    background: transparent;
+    color: #b89b65;
+    border: 1px solid rgba(194, 160, 83, 0.25);
+    border-radius: 3px;
+    padding: 4px 7px;
+    font-family: "Cinzel", serif;
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+.cat-btn:hover { background: rgba(194, 160, 83, 0.1); }
+.cat-btn.active {
+    background: rgba(155, 42, 30, 0.35);
+    color: #f1dca2;
+    border-color: rgba(155, 42, 30, 0.7);
+}
+
+.search-input {
+    background: #1b120a;
+    border: 1px solid rgba(194, 160, 83, 0.4);
+    color: #f1dca2;
+    padding: 5px 8px;
+    border-radius: 3px;
+    font-family: "Crimson Text", serif;
+    font-size: 13px;
+    width: 100%;
+    margin-bottom: 6px;
+}
+.search-input:focus { outline: none; border-color: #e6c56a; }
+
+.obj-grid {
+    max-height: 380px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.selection-ops button, .layer-toggle button {
+    background: rgba(194, 160, 83, 0.1);
+    color: #d7bd7a;
+    border: 1px solid rgba(194, 160, 83, 0.3);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-family: "Cinzel", serif;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin: 2px 2px 2px 0;
+}
+.selection-ops button:hover, .layer-toggle button:hover { background: rgba(194, 160, 83, 0.25); }
+.selection-ops .danger { color: #f3a8a0; border-color: rgba(195, 60, 50, 0.4); }
+
+.path-opts, .wall-opts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+.path-opts label, .wall-opts label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: #cbb989;
+    font-family: "Cinzel", serif;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    flex: 1;
+    min-width: 90px;
+}
+.path-opts select, .path-opts input[type="number"],
+.wall-opts select {
+    background: #1b120a;
+    color: #e6c56a;
+    border: 1px solid rgba(194, 160, 83, 0.4);
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-family: "Crimson Text", serif;
+    font-size: 12px;
+}
+
+.asset-upload-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.asset-upload-row button {
+    background: rgba(194, 160, 83, 0.15);
+    color: #e6c56a;
+    border: 1px dashed rgba(194, 160, 83, 0.4);
+    border-radius: 3px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-family: "Cinzel", serif;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.asset-upload-row small { color: #a99573; font-style: italic; }
+
+.my-asset-item {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 4px 6px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 3px;
+    margin-bottom: 4px;
+}
+.my-asset-item img {
+    width: 36px; height: 36px;
+    object-fit: contain;
+    background: #1a0e05;
+    border-radius: 2px;
+}
+.my-asset-item .nm {
+    flex: 1;
+    color: #d7bd7a;
+    font-family: "Cinzel", serif;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.my-asset-item .del {
+    background: transparent;
+    color: #f3a8a0;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+/* Zusatz: Flip/Rot/Layer-Buttons */
+.transform-ops {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.transform-ops button {
+    background: rgba(194, 160, 83, 0.1);
+    color: #d7bd7a;
+    border: 1px solid rgba(194, 160, 83, 0.3);
+    border-radius: 3px;
+    padding: 4px 8px;
+    font-family: "Cinzel", serif;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.layer-pill {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(100, 100, 100, 0.3);
+    font-family: "Cinzel", serif;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #d7bd7a;
+    margin-left: 6px;
+}
+.layer-pill.below { background: rgba(80, 140, 200, 0.3); }
+.layer-pill.above { background: rgba(230, 197, 106, 0.2); }
