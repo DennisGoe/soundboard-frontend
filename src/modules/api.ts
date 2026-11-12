@@ -359,6 +359,10 @@ export interface MapLighting {
     fogH: number;
     fogBits: string; // Base64
     darkness: boolean;
+    // Spieler-Deckkraft: 1 = voll schwarz/Nebel, 0 = unsichtbar.
+    // Von optional, damit alte Server-Antworten weiterhin funktionieren (default 1).
+    darknessOpacity?: number;
+    fogOpacity?: number;
     lights: LightSource[];
 }
 

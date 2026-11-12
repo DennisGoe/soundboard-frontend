@@ -20,10 +20,16 @@ export interface LightingLayerProps {
     isOwner: boolean;
     // Fuer Token-Lichter brauchen wir die aktuelle Token-Liste (Position live).
     tokens: TokenInstance[];
-    // Deckkraft fuer den GM, wenn abgedeckt (default 0.5). Spieler sehen immer 1.0.
+    // Deckkraft fuer den GM, wenn abgedeckt (default 0.5). Spieler sehen die
+    // Nebel-/Dunkelheits-Overlays mit playerFogAlpha bzw. playerDarknessAlpha
+    // (default 1 = voller Nebel/voll schwarz).
     gmFogAlpha?: number;
-    // Dunkelheit-Alpha fuer GM (default 0.55). Spieler = 1.0.
     gmDarkAlpha?: number;
+    // Spieler-Deckkraft, vom GM pro Karte eingestellt (0..1). 1 = wie bisher
+    // (komplett schwarz / voller Nebel), kleiner = Spieler sehen die Karte
+    // schemenhaft durch das Overlay.
+    playerFogAlpha?: number;
+    playerDarknessAlpha?: number;
     // Falls die Karte eine endliche Welt hat (2d-editor hat width/height, oder
     // 2d-image hat imgW/cellPx-cols). Wir zeichnen Fog nur in diesem Rechteck.
     worldFieldsW: number;
@@ -58,8 +64,13 @@ function feetToFields(feet: number): number {
 const LightingLayer: React.FC<LightingLayerProps> = ({
     lighting, vt, isOwner, tokens,
     gmFogAlpha = 0.5, gmDarkAlpha = 0.55,
+    playerFogAlpha = 1, playerDarknessAlpha = 1,
     worldFieldsW, worldFieldsH,
 }) => {
+    // Clamp 0..1, damit kaputte Server-Payloads oder NaN niemals zu komisch
+    // aussehenden Canvas-Werten fuehren.
+    const pFA = Math.max(0, Math.min(1, Number.isFinite(playerFogAlpha) ? playerFogAlpha : 1));
+    const pDA = Math.max(0, Math.min(1, Number.isFinite(playerDarknessAlpha) ? playerDarknessAlpha : 1));
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -127,9 +138,10 @@ const LightingLayer: React.FC<LightingLayerProps> = ({
                 }
                 octx.globalCompositeOperation = "source-over";
 
-                // In Haupt-Canvas blitten; GM gedaempft, Spieler voll.
+                // In Haupt-Canvas blitten; GM gedaempft, Spieler mit der
+                // server-persistierten Deckkraft (1 = komplett schwarz, 0 = aus).
                 ctx.save();
-                ctx.globalAlpha = isOwner ? gmDarkAlpha : 1.0;
+                ctx.globalAlpha = isOwner ? gmDarkAlpha : pDA;
                 // DPR-Normalisierung: off ist in Device-Pixel, wir zeichnen mit resetter Transform in Logical-Coords.
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.drawImage(off, 0, 0);
@@ -179,7 +191,7 @@ const LightingLayer: React.FC<LightingLayerProps> = ({
                 if (tctx) {
                     tctx.putImageData(fogImg, 0, 0);
                     ctx.save();
-                    ctx.globalAlpha = isOwner ? gmFogAlpha : 1.0;
+                    ctx.globalAlpha = isOwner ? gmFogAlpha : pFA;
                     // Nearest-Neighbor: Pixel pro Feld, keine Weichzeichnung.
                     (ctx as any).imageSmoothingEnabled = false;
                     ctx.drawImage(
@@ -211,7 +223,7 @@ const LightingLayer: React.FC<LightingLayerProps> = ({
         }
     }, [
         lighting, vt.baseFieldPx, vt.baseOffsetX, vt.baseOffsetY, vt.scale, vt.panX, vt.panY,
-        isOwner, tokens, gmFogAlpha, gmDarkAlpha, worldFieldsW, worldFieldsH,
+        isOwner, tokens, gmFogAlpha, gmDarkAlpha, pFA, pDA, worldFieldsW, worldFieldsH,
     ]);
 
     return (

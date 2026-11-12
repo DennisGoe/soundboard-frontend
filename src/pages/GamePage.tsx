@@ -19,12 +19,14 @@ import { TokenPreview } from "./CharactersPage";
 import LightingLayer, { ViewT } from "../lighting/LightingLayer";
 
 // D&D-Fackel-Presets: bright, dim (in Fuss).
+// Fackel seit Runde 3e: Radius nur 5 ft (= 1 Feld), weicher Verlauf.
+// bright=2.5 + dim=2.5 ergibt total 5 ft mit mittigem Falloff.
 const LIGHT_PRESETS: { key: string; name: string; bright: number; dim: number; color: string }[] = [
-    { key: 'kerze',  name: 'Kerze (5/5)',      bright: 5,  dim: 5,  color: '#ffe3a1' },
-    { key: 'fackel', name: 'Fackel (20/20)',   bright: 20, dim: 20, color: '#ffbb66' },
-    { key: 'laterne',name: 'Laterne (30/30)',  bright: 30, dim: 30, color: '#ffd891' },
-    { key: 'feuer',  name: 'Lagerfeuer (20/40)',bright: 20, dim: 40, color: '#ff8a3c' },
-    { key: 'tages',  name: 'Tageslicht (60/60)',bright: 60, dim: 60, color: '#fff2c8' },
+    { key: 'kerze',  name: 'Kerze (5/5)',       bright: 5,   dim: 5,   color: '#ffe3a1' },
+    { key: 'fackel', name: 'Fackel (5 ft)',     bright: 2.5, dim: 2.5, color: '#ffbb66' },
+    { key: 'laterne',name: 'Laterne (30/30)',   bright: 30,  dim: 30,  color: '#ffd891' },
+    { key: 'feuer',  name: 'Lagerfeuer (20/40)',bright: 20,  dim: 40,  color: '#ff8a3c' },
+    { key: 'tages',  name: 'Tageslicht (60/60)',bright: 60,  dim: 60,  color: '#fff2c8' },
 ];
 
 interface PresenceUser { _id: string; username: string; }
@@ -854,6 +856,43 @@ const GamePage: React.FC = () => {
         socket.emit('campaign:lighting:darkness', { campaignId: id, mapId: activeMapId, on }, () => {});
     };
 
+    // Spieler-Deckkraft fuer Dunkelheit + Nebel. Server persistiert + broadcastet.
+    // Wir machen eine simple Throttle-via-Timeout, damit Slider-Dragging keinen
+    // Event-Sturm erzeugt (mind. 80 ms Abstand zwischen Emits reichen).
+    const darkOpaDebounce = useRef<number | null>(null);
+    const fogOpaDebounce = useRef<number | null>(null);
+    const sendPlayerDarknessOpacity = (v: number) => {
+        if (!id || !activeMapId || !isOwner) return;
+        if (darkOpaDebounce.current) window.clearTimeout(darkOpaDebounce.current);
+        darkOpaDebounce.current = window.setTimeout(() => {
+            const socket = getSocket();
+            socket.emit('campaign:lighting:setDarknessOpacity', {
+                campaignId: id, mapId: activeMapId, opacity: v,
+            }, () => {});
+        }, 80);
+    };
+    const sendPlayerFogOpacity = (v: number) => {
+        if (!id || !activeMapId || !isOwner) return;
+        if (fogOpaDebounce.current) window.clearTimeout(fogOpaDebounce.current);
+        fogOpaDebounce.current = window.setTimeout(() => {
+            const socket = getSocket();
+            socket.emit('campaign:lighting:setFogOpacity', {
+                campaignId: id, mapId: activeMapId, opacity: v,
+            }, () => {});
+        }, 80);
+    };
+    // Lokal gehaltener Slider-Stand (fuer flueckiges UI) — spiegelt den Server-
+    // Wert, bis GM dran zieht. Server-Push via onLighting ueberschreibt wieder.
+    const [localDarkOpa, setLocalDarkOpa] = useState<number | null>(null);
+    const [localFogOpa, setLocalFogOpa] = useState<number | null>(null);
+    useEffect(() => { setLocalDarkOpa(null); }, [activeMapId]);
+    useEffect(() => { setLocalFogOpa(null); }, [activeMapId]);
+
+    const effectiveDarkOpa = localDarkOpa !== null ? localDarkOpa
+        : (typeof lighting?.darknessOpacity === 'number' ? lighting.darknessOpacity : 1);
+    const effectiveFogOpa = localFogOpa !== null ? localFogOpa
+        : (typeof lighting?.fogOpacity === 'number' ? lighting.fogOpacity : 1);
+
     const coverAll = () => sendFogOps([{ kind: 'all', covered: true }]);
     const revealAll = () => sendFogOps([{ kind: 'all', covered: false }]);
 
@@ -1167,6 +1206,13 @@ const GamePage: React.FC = () => {
                                 <label className="slider-label">GM-Transparenz: {Math.round(gmFogAlpha * 100)}%</label>
                                 <input type="range" min={0.1} max={0.9} step={0.05} value={gmFogAlpha}
                                        onChange={(e) => setGmFogAlpha(parseFloat(e.target.value))} />
+                                <label className="slider-label">Nebel-Deckkraft für Spieler: {Math.round(effectiveFogOpa * 100)}%</label>
+                                <input type="range" min={0} max={1} step={0.05} value={effectiveFogOpa}
+                                       onChange={(e) => {
+                                           const v = parseFloat(e.target.value);
+                                           setLocalFogOpa(v);
+                                           sendPlayerFogOpacity(v);
+                                       }} />
                             </>
                         )}
 
@@ -1178,6 +1224,13 @@ const GamePage: React.FC = () => {
                         <label className="slider-label">GM-Sichtbarkeit in Dunkelheit: {Math.round((1 - gmDarkAlpha) * 100)}%</label>
                         <input type="range" min={0.1} max={0.85} step={0.05} value={gmDarkAlpha}
                                onChange={(e) => setGmDarkAlpha(parseFloat(e.target.value))} />
+                        <label className="slider-label">Dunkelheit für Spieler: {Math.round(effectiveDarkOpa * 100)}%</label>
+                        <input type="range" min={0} max={1} step={0.05} value={effectiveDarkOpa}
+                               onChange={(e) => {
+                                   const v = parseFloat(e.target.value);
+                                   setLocalDarkOpa(v);
+                                   sendPlayerDarknessOpacity(v);
+                               }} />
                         <label className="slider-label" style={{ marginTop: 8 }}>Lichtpreset</label>
                         <select value={lightPreset} onChange={(e) => setLightPreset(e.target.value)}>
                             {LIGHT_PRESETS.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
@@ -1356,6 +1409,8 @@ const GamePage: React.FC = () => {
                                 worldFieldsH={worldDims.h}
                                 gmFogAlpha={gmFogAlpha}
                                 gmDarkAlpha={gmDarkAlpha}
+                                playerFogAlpha={effectiveFogOpa}
+                                playerDarknessAlpha={effectiveDarkOpa}
                             />
                         )}
                         {fogToolOverlay}
@@ -1431,6 +1486,8 @@ const GamePage: React.FC = () => {
                                         worldFieldsH={worldDims.h}
                                         gmFogAlpha={gmFogAlpha}
                                         gmDarkAlpha={gmDarkAlpha}
+                                        playerFogAlpha={effectiveFogOpa}
+                                        playerDarknessAlpha={effectiveDarkOpa}
                                     />
                                 )}
                                 {fogToolOverlay}
