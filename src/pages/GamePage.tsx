@@ -370,6 +370,26 @@ const GamePage: React.FC = () => {
         return m;
     }, [campaign]);
 
+    // Index: userId -> username. Nachbesserung (4a2): fuer das Ableiten der
+    // Initialen + Palettenfarbe von Spieler-Tokens EXAKT so wie in der
+    // Praesenz-Fussleiste. Quellen in abnehmender Prioritaet:
+    //   1. Praesenz-Liste (aktuelle Live-Daten)
+    //   2. campaign.players (hydratisiert mit username)
+    //   3. mein eigener User (self)
+    const usernameById: Map<string, string> = useMemo(() => {
+        const m = new Map<string, string>();
+        if (campaign) {
+            for (const p of campaign.players) {
+                if (p?._id) m.set(String(p._id), p.username);
+            }
+        }
+        for (const u of presence) {
+            if (u?._id) m.set(String(u._id), u.username);
+        }
+        if (myUserId && myName) m.set(String(myUserId), myName);
+        return m;
+    }, [campaign, presence, myUserId, myName]);
+
     const setMyChar = async (charId: string | null) => {
         if (!id) return;
         try {
@@ -1566,6 +1586,7 @@ const GamePage: React.FC = () => {
                                 onPointerUpToken={endTokenDrag}
                                 onSelectToken={(t, ev) => toggleSelect(t.id, ev.shiftKey)}
                                 characters={campaign.characters}
+                                usernameById={usernameById}
                             />
                         )}
                         {viewTransform && lighting && worldDims && (
@@ -1580,6 +1601,26 @@ const GamePage: React.FC = () => {
                                 gmDarkAlpha={gmDarkAlpha}
                                 playerFogAlpha={effectiveFogOpa}
                                 playerDarknessAlpha={effectiveDarkOpa}
+                            />
+                        )}
+                        {/* Nachbesserung (4a2): eigene Tokens IMMER ueber Nebel/Dunkelheit sichtbar
+                            und bedienbar. Fremde Tokens bleiben unter dem Overlay. */}
+                        {viewTransform && !isOwner && (
+                            <TokenLayer
+                                tokens={tokens}
+                                groups={groups}
+                                vt={viewTransform}
+                                isOwner={!!isOwner}
+                                myUserId={myUserId}
+                                selection={selection}
+                                draggingIds={draggingIds}
+                                onPointerDownToken={startTokenDrag}
+                                onPointerMoveToken={continueTokenDrag}
+                                onPointerUpToken={endTokenDrag}
+                                onSelectToken={(t, ev) => toggleSelect(t.id, ev.shiftKey)}
+                                characters={campaign.characters}
+                                usernameById={usernameById}
+                                ownOnly
                             />
                         )}
                         {fogToolOverlay}
@@ -1649,6 +1690,7 @@ const GamePage: React.FC = () => {
                                         onPointerUpToken={endTokenDrag}
                                         onSelectToken={(t, ev) => toggleSelect(t.id, ev.shiftKey)}
                                         characters={campaign.characters}
+                                        usernameById={usernameById}
                                     />
                                 )}
                                 {viewTransform && lighting && worldDims && (
@@ -1663,6 +1705,25 @@ const GamePage: React.FC = () => {
                                         gmDarkAlpha={gmDarkAlpha}
                                         playerFogAlpha={effectiveFogOpa}
                                         playerDarknessAlpha={effectiveDarkOpa}
+                                    />
+                                )}
+                                {/* Nachbesserung (4a2): eigene Tokens IMMER ueber Nebel/Dunkelheit. */}
+                                {viewTransform && !isOwner && (
+                                    <TokenLayer
+                                        tokens={tokens}
+                                        groups={groups}
+                                        vt={viewTransform}
+                                        isOwner={!!isOwner}
+                                        myUserId={myUserId}
+                                        selection={selection}
+                                        draggingIds={draggingIds}
+                                        onPointerDownToken={startTokenDrag}
+                                        onPointerMoveToken={continueTokenDrag}
+                                        onPointerUpToken={endTokenDrag}
+                                        onSelectToken={(t, ev) => toggleSelect(t.id, ev.shiftKey)}
+                                        characters={campaign.characters}
+                                        usernameById={usernameById}
+                                        ownOnly
                                     />
                                 )}
                                 {fogToolOverlay}
@@ -1885,23 +1946,64 @@ interface TokenLayerProps {
     onPointerUpToken: (e: React.PointerEvent) => void;
     onSelectToken: (t: TokenInstance, e: React.PointerEvent) => void;
     characters: CharacterDoc[];
+    // userId -> username, zum Ableiten von Initialen + Palettenfarbe exakt wie in der Fussleiste.
+    usernameById: Map<string, string>;
+    // Nachbesserung (4a2): wir teilen die Token-Ebene in "fremd" (unter dem Fog/
+    // Darkness-Overlay) und "eigen" (ueber dem Overlay). ownOnly=true rendert nur
+    // Tokens, die dem aktuellen User gehoeren — mit hoeherem z-index (CSS).
+    ownOnly?: boolean;
 }
 
 const TokenLayer: React.FC<TokenLayerProps> = ({
     tokens, groups, vt, isOwner, myUserId, selection, draggingIds,
     onPointerDownToken, onPointerMoveToken, onPointerUpToken, onSelectToken, characters,
+    usernameById, ownOnly = false,
 }) => {
+    // Liste filtern.
+    const shown = tokens.filter((t) => {
+        if (!ownOnly) return true;
+        return !!myUserId && String(t.ownerUserId || "") === String(myUserId);
+    });
     return (
-        <div className="token-layer" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-            {tokens.map((t) => {
+        <div
+            className={`token-layer${ownOnly ? " own" : ""}`}
+            style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
+        >
+            {shown.map((t) => {
                 // Runde 4a: Token belegt genau 1 Feld, egal was im DB-Dokument steht.
                 const effSize = 1;
                 const { sx, sy } = fieldToScreen(vt, t.x + effSize / 2, t.y + effSize / 2);
-                const sizePx = vt.baseFieldPx * vt.scale * effSize;
+                const fieldPx = vt.baseFieldPx * vt.scale * effSize;
+                // Nachbesserung (4a2): sichtbarer Token ~85 % der Feldbreite.
+                const sizePx = fieldPx * 0.85;
                 const canMove = isOwner || (!t.locked && String(t.ownerUserId || "") === String(myUserId || ""));
                 const char = t.characterId ? characters.find((c) => c._id === t.characterId) : null;
                 const isSel = selection.has(t.id);
                 const isDrag = draggingIds.includes(t.id);
+
+                // Kuerzel + Farbe: fuer Spieler-Tokens IMMER aus dem Owner-Username ableiten
+                // (gleiche Helfer wie in der Fussleiste: initials(username) + colorFor(username)).
+                // Fuer NSC-Tokens: Kuerzel aus dem Token-Label (nie "?", ausser Label ist leer).
+                let letterText = "?";
+                let bg = t.color || "#9b2a1e";
+                let displayName = t.label || "Token";
+                if (char) {
+                    displayName = char.name;
+                    letterText = initials(char.name);
+                    bg = colorFor(char.name);
+                } else if (t.ownerUserId) {
+                    const uname = usernameById.get(String(t.ownerUserId)) || t.label || "";
+                    displayName = uname || t.label || "Spieler";
+                    letterText = uname ? initials(uname) : (t.label ? initials(t.label) : "?");
+                    bg = uname ? colorFor(uname) : (t.color || "#9b2a1e");
+                } else {
+                    const nm = (t.label || "").trim();
+                    if (nm.length > 0) {
+                        letterText = initials(nm);
+                        displayName = nm;
+                    }
+                }
+
                 return (
                     <div
                         key={t.id}
@@ -1915,7 +2017,8 @@ const TokenLayer: React.FC<TokenLayerProps> = ({
                             width: sizePx,
                             height: sizePx,
                             pointerEvents: "auto",
-                            borderColor: char ? "#9b2a1e" : (t.color || "#c2a053"),
+                            borderColor: bg,
+                            background: bg,
                         }}
                         onMouseDown={(ev) => {
                             ev.stopPropagation();
@@ -1927,13 +2030,13 @@ const TokenLayer: React.FC<TokenLayerProps> = ({
                             onSelectToken(t, ev);
                             if (canMove) onPointerDownToken(ev, t);
                         }}
-                        title={char ? char.name : t.label || "Token"}
+                        title={displayName}
                     >
                         {char?.tokenUrl ? (
                             <img src={char.tokenUrl} alt={char.name} draggable={false} />
                         ) : (
-                            <div className="letter" style={{ background: t.color || "#9b2a1e" }}>
-                                {(char?.name || t.label || "?").trim().slice(0, 1).toUpperCase()}
+                            <div className="letter" style={{ background: bg }}>
+                                {letterText}
                             </div>
                         )}
                         {t.locked && <div className="lock-badge" title="Gesperrt">🔒</div>}
