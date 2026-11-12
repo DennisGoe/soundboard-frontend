@@ -473,7 +473,13 @@ const GamePage: React.FC = () => {
     }, [activeEditorDoc, editorTick]);
 
     const onEditorPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-        (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+        // Runde 4a: GM linksziehen ohne Modifier = Auswahlrahmen.
+        const wantPan = e.button === 1 || e.button === 2 || spacePressedRef.current;
+        if (isOwner && !wantPan && e.button === 0 && editorWrapRef.current) {
+            startSelectionRect(e.clientX, e.clientY, editorWrapRef.current);
+            return;
+        }
+        try { (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId); } catch {}
         editorPanRef.current = { x: e.clientX - editorTransformRef.current.x, y: e.clientY - editorTransformRef.current.y };
     };
     const onEditorPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -512,6 +518,14 @@ const GamePage: React.FC = () => {
     };
 
     const onMouseDown = (e: React.MouseEvent) => {
+        // Runde 4a: GM bekommt den Auswahlrahmen beim Linksziehen ohne Modifier.
+        // Pan = Space+Links ODER Mittel/Rechts. Spieler panen weiterhin per Linksziehen.
+        const wantPan = e.button === 1 || e.button === 2 || spacePressedRef.current;
+        if (isOwner && !wantPan && e.button === 0 && imageWrapRef.current) {
+            startSelectionRect(e.clientX, e.clientY, imageWrapRef.current);
+            return;
+        }
+        if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
         dragRef.current = { x: e.clientX - transform.x, y: e.clientY - transform.y };
     };
     const onMouseMove = (e: React.MouseEvent) => {
@@ -672,6 +686,11 @@ const GamePage: React.FC = () => {
     };
 
     const tokenGroupIds = (t: TokenInstance): string[] => {
+        // Runde 4a: GM mit >=2 selektierten Tokens -> alle selektierten bewegen sich.
+        // Spieler-Gruppen bleiben wie gehabt (persistente Server-Gruppen).
+        if (isOwner && selectionRef.current.has(t.id) && selectionRef.current.size >= 2) {
+            return Array.from(selectionRef.current);
+        }
         if (!t.groupId) return [t.id];
         return tokens.filter((x) => x.groupId === t.groupId).map((x) => x.id);
     };
@@ -737,7 +756,17 @@ const GamePage: React.FC = () => {
                 if (cur) updates.push({ id: tid, x: cur.x, y: cur.y });
             }
             const socket = getSocket();
-            socket.emit("campaign:tokens:drop", { campaignId: id, mapId: activeMapId, updates }, () => {});
+            socket.emit("campaign:tokens:drop", { campaignId: id, mapId: activeMapId, updates }, (ack: any) => {
+                // Runde 4a: Zug abgelehnt (Kollision) -> alle am Drag beteiligten
+                // Tokens auf ihre Ausgangsposition zuruecksetzen.
+                if (ack && ack.ok === false && st && st.originals) {
+                    setTokens((prev) => prev.map((tok) => {
+                        const orig = st.originals.get(tok.id);
+                        return orig ? { ...tok, x: orig.x, y: orig.y } : tok;
+                    }));
+                    showRejectHint(ack.msg === 'cell occupied' ? 'Feld belegt' : 'Zug abgelehnt');
+                }
+            });
             dragTokenRef.current = null;
             setDraggingIds([]);
         };
@@ -795,13 +824,23 @@ const GamePage: React.FC = () => {
 
     // --- Selektion fuer GM-Gruppierung ---
     const [selection, setSelection] = useState<Set<string>>(new Set());
+    // Ref auf aktuelle Selection — brauchen wir synchron waehrend eines mousedown,
+    // um zu entscheiden, ob der Drag die ganze Auswahl mitzieht.
+    const selectionRef = useRef<Set<string>>(selection);
+    useEffect(() => { selectionRef.current = selection; }, [selection]);
     const toggleSelect = (tid: string, shift: boolean) => {
         setSelection((prev) => {
             const next = new Set(prev);
             if (shift) {
                 if (next.has(tid)) next.delete(tid); else next.add(tid);
             } else {
-                next.clear(); next.add(tid);
+                // Runde 4a: Linksklick auf ein bereits selektiertes Token
+                // BELAESST die Auswahl (fuer Mitzieh-Drag). Nur ausserhalb des
+                // Sets wird die Auswahl auf dieses eine Token verengt.
+                if (!next.has(tid)) {
+                    next.clear();
+                    next.add(tid);
+                }
             }
             return next;
         });
@@ -819,6 +858,93 @@ const GamePage: React.FC = () => {
         if (!id || !activeMapId || !isOwner) return;
         const socket = getSocket();
         socket.emit("campaign:tokens:ungroup", { campaignId: id, mapId: activeMapId, groupId }, () => {});
+    };
+
+    // --- Runde 4a: Live-Spielmodus Auswahl + Pan-Modifier + Reject-Hinweis ---
+    // GM linksziehen auf leerer Flaeche = Auswahlrahmen.
+    // Pan auf der Karte: Space+Linksziehen ODER mittlere/rechte Maustaste.
+    // Esc hebt Auswahl auf, klick auf leere Flaeche (ohne Shift, ohne Drag) ebenfalls.
+    const spacePressedRef = useRef(false);
+    const selStartRef = useRef<{ fx: number; fy: number } | null>(null);
+    const [selRectPreview, setSelRectPreview] = useState<null | { x: number; y: number; w: number; h: number }>(null);
+    const [rejectHint, setRejectHint] = useState<string | null>(null);
+    useEffect(() => {
+        const d = (e: KeyboardEvent) => {
+            if (e.code === 'Space' && !e.repeat) {
+                spacePressedRef.current = true;
+            }
+            if (e.key === 'Escape') {
+                setSelection(new Set());
+                setSelRectPreview(null);
+                selStartRef.current = null;
+            }
+        };
+        const u = (e: KeyboardEvent) => {
+            if (e.code === 'Space') spacePressedRef.current = false;
+        };
+        window.addEventListener('keydown', d);
+        window.addEventListener('keyup', u);
+        return () => {
+            window.removeEventListener('keydown', d);
+            window.removeEventListener('keyup', u);
+        };
+    }, []);
+
+    // Startet einen Auswahlrahmen (Rect im Wrap-Koordinatensystem).
+    // wrapEl gibt uns das Bounding-Rect fuer Viewport->Wrap-Normalisierung.
+    const startSelectionRect = useCallback((startClientX: number, startClientY: number, wrapEl: HTMLElement) => {
+        if (!viewTransformRef.current) return;
+        const r = wrapEl.getBoundingClientRect();
+        const sx = startClientX - r.left;
+        const sy = startClientY - r.top;
+        const { fx, fy } = screenToField(viewTransformRef.current, sx, sy);
+        selStartRef.current = { fx, fy };
+        setSelRectPreview({ x: fx, y: fy, w: 0, h: 0 });
+        const onMove = (ev: MouseEvent) => {
+            const rr = wrapEl.getBoundingClientRect();
+            const cx = ev.clientX - rr.left;
+            const cy = ev.clientY - rr.top;
+            if (!viewTransformRef.current) return;
+            const { fx: cfx, fy: cfy } = screenToField(viewTransformRef.current, cx, cy);
+            const s = selStartRef.current;
+            if (!s) return;
+            setSelRectPreview({
+                x: Math.min(s.fx, cfx),
+                y: Math.min(s.fy, cfy),
+                w: Math.abs(cfx - s.fx),
+                h: Math.abs(cfy - s.fy),
+            });
+        };
+        const onUp = () => {
+            document.removeEventListener('mousemove', onMove, true);
+            document.removeEventListener('mouseup', onUp, true);
+            const s = selStartRef.current;
+            selStartRef.current = null;
+            setSelRectPreview((preview) => {
+                if (!preview || !s) return null;
+                // Winziges Rechteck -> Klick auf freie Flaeche: Auswahl loeschen.
+                if (preview.w < 0.3 && preview.h < 0.3) {
+                    setSelection(new Set());
+                    return null;
+                }
+                const inside = tokensRef.current.filter((t) => {
+                    const ccx = t.x + (t.size || 1) / 2;
+                    const ccy = t.y + (t.size || 1) / 2;
+                    return ccx >= preview.x && ccx <= preview.x + preview.w &&
+                           ccy >= preview.y && ccy <= preview.y + preview.h;
+                });
+                setSelection(new Set(inside.map((t) => t.id)));
+                return null;
+            });
+        };
+        document.addEventListener('mousemove', onMove, true);
+        document.addEventListener('mouseup', onUp, true);
+    }, []);
+
+    // Zeigt einen flackernden "Zug verworfen"-Hinweis an.
+    const showRejectHint = (msg: string) => {
+        setRejectHint(msg);
+        setTimeout(() => setRejectHint((cur) => (cur === msg ? null : cur)), 1600);
     };
 
     // --- Fog-/Light-Werkzeuge ---
@@ -1072,6 +1198,38 @@ const GamePage: React.FC = () => {
         }
     }, [polyPoints, sendFogOps]);
 
+    // Runde 4a: Overlay fuer GM-Auswahlrahmen + Reject-Hinweis.
+    const selectionRectOverlay = (isOwner && selRectPreview && viewTransform) ? (() => {
+        const a = fieldToScreen(viewTransform, selRectPreview.x, selRectPreview.y);
+        const b = fieldToScreen(viewTransform, selRectPreview.x + selRectPreview.w, selRectPreview.y + selRectPreview.h);
+        return (
+            <div
+                className="selection-rect"
+                style={{
+                    position: 'absolute',
+                    left: Math.min(a.sx, b.sx),
+                    top: Math.min(a.sy, b.sy),
+                    width: Math.abs(b.sx - a.sx),
+                    height: Math.abs(b.sy - a.sy),
+                    pointerEvents: 'none',
+                    border: '2px dashed #e6c56a',
+                    background: 'rgba(230,197,106,0.08)',
+                    zIndex: 7,
+                }}
+            />
+        );
+    })() : null;
+
+    const rejectHintOverlay = rejectHint ? (
+        <div className="reject-hint" style={{
+            position: 'absolute', left: '50%', top: 48,
+            transform: 'translateX(-50%)',
+            background: 'rgba(60,20,16,0.92)', color: '#f1d9ad',
+            padding: '8px 16px', borderRadius: 6, fontFamily: 'Georgia, serif',
+            border: '1px solid #9b2a1e', zIndex: 20, pointerEvents: 'none',
+        }}>{rejectHint}</div>
+    ) : null;
+
     // JSX-Fragment, das wir in beide Karten-Branches einhaengen.
     const brushRadiusPx = (fogTool === 'brush-cover' || fogTool === 'brush-reveal') && viewTransform
         ? fogRadius * viewTransform.baseFieldPx * viewTransform.scale : 0;
@@ -1283,6 +1441,16 @@ const GamePage: React.FC = () => {
                         <button className="btn-ghost" onClick={() => addTokenAtCentre(null, "GM")}>
                             + GM-Token
                         </button>
+                        <div className="gm-controls-hint" title="Bedienung Live-Spielbrett">
+                            <div className="group-title" style={{ marginTop: 10 }}>Bedienung</div>
+                            <div style={{ fontSize: 11, lineHeight: 1.45, opacity: 0.85 }}>
+                                • Linksziehen (leer) = Rahmen auswählen<br />
+                                • Klick auf Token = einzeln (+Shift = mehrere)<br />
+                                • Ziehen eines ausgewählten Tokens bewegt alle<br />
+                                • Space+Ziehen / Mittel-/Rechtsklick = Karte verschieben<br />
+                                • Esc = Auswahl leeren
+                            </div>
+                        </div>
                         {selection.size >= 2 && (
                             <button className="btn-rust" style={{ marginTop: 8 }} onClick={groupSelection}>
                                 {selection.size} Tokens gruppieren
@@ -1346,6 +1514,7 @@ const GamePage: React.FC = () => {
                         onMouseUp={onMouseUp}
                         onMouseLeave={onMouseUp}
                         onWheel={onWheel}
+                        onContextMenu={(e) => { if (isOwner) e.preventDefault(); }}
                         onClick={(ev) => {
                             // Kalibrier-Modus two-point
                             if (!calibrateMode || calibrateMode !== "two-point" || !isOwner) return;
@@ -1414,6 +1583,8 @@ const GamePage: React.FC = () => {
                             />
                         )}
                         {fogToolOverlay}
+                        {selectionRectOverlay}
+                        {rejectHintOverlay}
                         <div className="game-zoom">
                             <button onClick={() => bumpZoom(-1)} title="Verkleinern">&minus;</button>
                             <button onClick={resetZoom} title="Zurücksetzen">&#9711;</button>
@@ -1445,7 +1616,11 @@ const GamePage: React.FC = () => {
                         )}
                     </div>
                 ) : activeMap.kind === "2d-editor" ? (
-                    <div className="game-map editor-readonly" ref={editorWrapRef}>
+                    <div
+                        className="game-map editor-readonly"
+                        ref={editorWrapRef}
+                        onContextMenu={(e) => { if (isOwner) e.preventDefault(); }}
+                    >
                         {!activeEditorDoc ? (
                             <div className="game-no-map"><h2>Lade 2D-Karte &hellip;</h2></div>
                         ) : (
@@ -1491,6 +1666,8 @@ const GamePage: React.FC = () => {
                                     />
                                 )}
                                 {fogToolOverlay}
+                        {selectionRectOverlay}
+                        {rejectHintOverlay}
                             </>
                         )}
                     </div>
@@ -1595,9 +1772,7 @@ const GamePage: React.FC = () => {
                             return (
                                 <div key={sid} className="sel-row">
                                     <span className="name">{t.label || (t.characterId ? campaign.characters.find((c) => c._id === t.characterId)?.name : "Token")}</span>
-                                    <button className="btn-ghost" onClick={() => resizeToken(t, Math.max(0.5, t.size - 0.5))}>−</button>
-                                    <span>{t.size}</span>
-                                    <button className="btn-ghost" onClick={() => resizeToken(t, Math.min(6, t.size + 0.5))}>+</button>
+                                    {/* Runde 4a: Token ist fix 1 Feld gross. Groessen-Knoepfe ausgeblendet. */}
                                     <button className="btn-ghost" onClick={() => toggleLock(t)}>{t.locked ? "🔒" : "🔓"}</button>
                                     <button className="btn-ghost danger" onClick={() => removeToken(t)}>✕</button>
                                 </div>
@@ -1719,8 +1894,10 @@ const TokenLayer: React.FC<TokenLayerProps> = ({
     return (
         <div className="token-layer" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
             {tokens.map((t) => {
-                const { sx, sy } = fieldToScreen(vt, t.x + t.size / 2, t.y + t.size / 2);
-                const sizePx = vt.baseFieldPx * vt.scale * t.size;
+                // Runde 4a: Token belegt genau 1 Feld, egal was im DB-Dokument steht.
+                const effSize = 1;
+                const { sx, sy } = fieldToScreen(vt, t.x + effSize / 2, t.y + effSize / 2);
+                const sizePx = vt.baseFieldPx * vt.scale * effSize;
                 const canMove = isOwner || (!t.locked && String(t.ownerUserId || "") === String(myUserId || ""));
                 const char = t.characterId ? characters.find((c) => c._id === t.characterId) : null;
                 const isSel = selection.has(t.id);
