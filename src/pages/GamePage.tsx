@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams } from "react-router-dom";
 import apiService, {
     Campaign, CharacterDoc, ChatMessage, MapFull, MapGrid, MapListItem,
+    MapLighting, LightSource,
     TokenGroup, TokenInstance,
 } from "../modules/api";
 import { getSocket } from "../modules/notifications/socket";
@@ -13,6 +14,16 @@ import "./characters.css";
 import { EditorDoc, normalizeDoc } from "../mapEditor/engine";
 import { Transform, render as renderMap } from "../mapEditor/renderer";
 import { TokenPreview } from "./CharactersPage";
+import LightingLayer, { ViewT } from "../lighting/LightingLayer";
+
+// D&D-Fackel-Presets: bright, dim (in Fuss).
+const LIGHT_PRESETS: { key: string; name: string; bright: number; dim: number; color: string }[] = [
+    { key: 'kerze',  name: 'Kerze (5/5)',      bright: 5,  dim: 5,  color: '#ffe3a1' },
+    { key: 'fackel', name: 'Fackel (20/20)',   bright: 20, dim: 20, color: '#ffbb66' },
+    { key: 'laterne',name: 'Laterne (30/30)',  bright: 30, dim: 30, color: '#ffd891' },
+    { key: 'feuer',  name: 'Lagerfeuer (20/40)',bright: 20, dim: 40, color: '#ff8a3c' },
+    { key: 'tages',  name: 'Tageslicht (60/60)',bright: 60, dim: 60, color: '#fff2c8' },
+];
 
 interface PresenceUser { _id: string; username: string; }
 
@@ -79,6 +90,24 @@ const GamePage: React.FC = () => {
     // Tokens pro (campaign, activeMap).
     const [tokens, setTokens] = useState<TokenInstance[]>([]);
     const [groups, setGroups] = useState<TokenGroup[]>([]);
+
+    // Lighting (Nebel + Dunkelheit + Lichter).
+    const [lighting, setLighting] = useState<MapLighting | null>(null);
+    const [fogTool, setFogTool] = useState<null | 'brush-cover' | 'brush-reveal' | 'rect-cover' | 'rect-reveal' | 'poly-cover' | 'poly-reveal' | 'place-light'>(null);
+    const [fogRadius, setFogRadius] = useState<number>(3); // in Feldern
+    const [gmFogAlpha, setGmFogAlpha] = useState<number>(0.5);
+    const [gmDarkAlpha, setGmDarkAlpha] = useState<number>(0.55);
+    // Rect-Preview
+    const rectStartRef = useRef<{ fx: number; fy: number } | null>(null);
+    const [rectPreview, setRectPreview] = useState<null | { x: number; y: number; w: number; h: number }>(null);
+    // Poly-Punkte
+    const [polyPoints, setPolyPoints] = useState<Array<[number, number]>>([]);
+    const [polyMouse, setPolyMouse] = useState<{ fx: number; fy: number } | null>(null);
+    // Light-Preset fuer Platzieren
+    const [lightPreset, setLightPreset] = useState<string>('fackel');
+    // Fog-Brush-Stroke: Mausposition als letzte-verarbeitete Zelle, damit wir
+    // bei flueckigem Drag kein Op-Sturm senden.
+    const brushLastRef = useRef<{ fx: number; fy: number } | null>(null);
 
     const chatInputRef = useRef<HTMLInputElement | null>(null);
     const chatLogRef = useRef<HTMLDivElement | null>(null);
@@ -175,6 +204,11 @@ const GamePage: React.FC = () => {
             setTokens(p.tokens);
             setGroups(p.groups);
         };
+        const onLighting = (p: { campaignId: string; mapId: string; lighting: MapLighting }) => {
+            if (p.campaignId !== id) return;
+            if (p.mapId !== activeMapId) return;
+            setLighting(p.lighting);
+        };
         const onTokTick = (p: { campaignId: string; mapId: string; updates: Array<{ id: string; x: number; y: number }> }) => {
             if (p.campaignId !== id) return;
             if (p.mapId !== activeMapId) return;
@@ -192,6 +226,7 @@ const GamePage: React.FC = () => {
         socket.on("campaign:characterSelection", onCharSel);
         socket.on("campaign:tokens:update", onTokUpdate);
         socket.on("campaign:tokens:tick", onTokTick);
+        socket.on("campaign:lighting:update", onLighting);
 
         return () => {
             socket.off("connect", join);
@@ -203,6 +238,7 @@ const GamePage: React.FC = () => {
             socket.off("campaign:characterSelection", onCharSel);
             socket.off("campaign:tokens:update", onTokUpdate);
             socket.off("campaign:tokens:tick", onTokTick);
+            socket.off("campaign:lighting:update", onLighting);
             try { socket.emit("campaign:leave", { campaignId: id }); } catch {}
             setJoined(false);
         };
@@ -214,6 +250,8 @@ const GamePage: React.FC = () => {
         if (!el) return;
         el.scrollTop = el.scrollHeight;
     }, [messages]);
+
+    // (Esc/Enter-Hotkeys werden weiter unten registriert, nachdem sendFogOps definiert ist.)
 
 
     const sendChat = useCallback(() => {
@@ -237,12 +275,13 @@ const GamePage: React.FC = () => {
     const isOwner = campaign?.role === "owner";
     const ownerId = campaign?.owner;
 
-    // activeMap volles Doc + Tokens laden wenn ID wechselt
+    // activeMap volles Doc + Tokens + Lighting laden wenn ID wechselt
     useEffect(() => {
         if (!activeMapId || !id) {
             setActiveMapFull(null);
             setTokens([]);
             setGroups([]);
+            setLighting(null);
             return;
         }
         let cancelled = false;
@@ -255,6 +294,10 @@ const GamePage: React.FC = () => {
                 const { tokens: ts, groups: gs } = await apiService.getMapTokens(id, activeMapId);
                 if (!cancelled) { setTokens(ts || []); setGroups(gs || []); }
             } catch { if (!cancelled) { setTokens([]); setGroups([]); } }
+            try {
+                const { lighting: lt } = await apiService.getMapLighting(id, activeMapId);
+                if (!cancelled) setLighting(lt);
+            } catch { if (!cancelled) setLighting(null); }
         })();
         return () => { cancelled = true; };
     }, [activeMapId, id]);
@@ -502,6 +545,42 @@ const GamePage: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeMap, activeMapFull, transform, editorTick]);
 
+    // Welt-Dimensionen in Feldern. Fuer 2d-editor direkt aus dem Doc; fuer
+    // 2d-image aus Bildgroesse/cellPx (nur wenn kalibriert).
+    const worldDims: { w: number; h: number } | null = useMemo(() => {
+        if (!activeMap) return null;
+        if (activeMap.kind === '2d-editor' && activeEditorDoc) {
+            return { w: activeEditorDoc.width, h: activeEditorDoc.height };
+        }
+        if (activeMap.kind === '2d-image') {
+            const grid = (activeMapFull?.grid || activeMap.grid || null) as MapGrid | null;
+            const imgW = imageSizeRef.current.w || 0;
+            const imgH = imageSizeRef.current.h || 0;
+            if (grid?.cellPx && grid.cellPx > 0 && imgW > 0 && imgH > 0) {
+                return {
+                    w: Math.max(1, Math.round(imgW / grid.cellPx)),
+                    h: Math.max(1, Math.round(imgH / grid.cellPx)),
+                };
+            }
+            // Schaetzwert bei nicht kalibrierter Karte: 30 Felder breit.
+            if (imgW > 0 && imgH > 0) {
+                return { w: 30, h: Math.max(1, Math.round((imgH / imgW) * 30)) };
+            }
+        }
+        return null;
+    }, [activeMap, activeEditorDoc, activeMapFull, editorTick]);
+
+    // GM ensureFog, sobald wir Welt-Dim kennen und noch keine Fog-Dim gesetzt ist
+    // (oder gewachsen/geschrumpft sind).
+    useEffect(() => {
+        if (!isOwner || !id || !activeMapId || !lighting || !worldDims) return;
+        if (lighting.fogW === worldDims.w && lighting.fogH === worldDims.h) return;
+        const socket = getSocket();
+        socket.emit('campaign:lighting:ensureFog', {
+            campaignId: id, mapId: activeMapId, w: worldDims.w, h: worldDims.h,
+        });
+    }, [isOwner, id, activeMapId, lighting, worldDims]);
+
     // --- Grid-Overlay (nur 2d-image) ---
     const effectiveGrid: MapGrid | null = useMemo(() => {
         if (!activeMap || activeMap.kind !== "2d-image") return null;
@@ -701,6 +780,256 @@ const GamePage: React.FC = () => {
         socket.emit("campaign:tokens:ungroup", { campaignId: id, mapId: activeMapId, groupId }, () => {});
     };
 
+    // --- Fog-/Light-Werkzeuge ---
+
+    const sendFogOps = useCallback((ops: Array<Record<string, any>>) => {
+        if (!id || !activeMapId) return;
+        const socket = getSocket();
+        socket.emit('campaign:lighting:fog', { campaignId: id, mapId: activeMapId, ops }, () => {});
+    }, [id, activeMapId]);
+
+    // Esc beendet Fog-Tools / Poly; Enter commitet Poly.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setFogTool(null);
+                setPolyPoints([]);
+                setPolyMouse(null);
+                setRectPreview(null);
+            } else if (e.key === 'Enter' && (fogTool === 'poly-cover' || fogTool === 'poly-reveal') && polyPoints.length >= 3) {
+                sendFogOps([{
+                    kind: fogTool === 'poly-cover' ? 'cover' : 'reveal',
+                    shape: 'poly', points: polyPoints,
+                }]);
+                setPolyPoints([]);
+                setPolyMouse(null);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [fogTool, polyPoints, sendFogOps]);
+
+    const setDarknessOnServer = (on: boolean) => {
+        if (!id || !activeMapId || !isOwner) return;
+        const socket = getSocket();
+        socket.emit('campaign:lighting:darkness', { campaignId: id, mapId: activeMapId, on }, () => {});
+    };
+
+    const coverAll = () => sendFogOps([{ kind: 'all', covered: true }]);
+    const revealAll = () => sendFogOps([{ kind: 'all', covered: false }]);
+
+    const addStaticLight = (fx: number, fy: number) => {
+        if (!id || !activeMapId || !isOwner) return;
+        const preset = LIGHT_PRESETS.find((p) => p.key === lightPreset) || LIGHT_PRESETS[1];
+        const light: Partial<LightSource> = {
+            kind: 'static', x: fx, y: fy,
+            bright: preset.bright, dim: preset.dim, color: preset.color,
+            label: preset.name, enabled: true,
+        };
+        const socket = getSocket();
+        socket.emit('campaign:lighting:light:add', {
+            campaignId: id, mapId: activeMapId, light,
+        }, () => {});
+    };
+
+    const toggleLight = (l: LightSource) => {
+        if (!id || !activeMapId) return;
+        const socket = getSocket();
+        socket.emit('campaign:lighting:light:update', {
+            campaignId: id, mapId: activeMapId, lightId: l.id, patch: { enabled: !l.enabled },
+        }, () => {});
+    };
+    const removeLight = (l: LightSource) => {
+        if (!id || !activeMapId) return;
+        const socket = getSocket();
+        socket.emit('campaign:lighting:light:remove', {
+            campaignId: id, mapId: activeMapId, lightId: l.id,
+        }, () => {});
+    };
+    // Toggle fuer Spieler: Licht am eigenen aktuellen Char-Token.
+    const myTokenOnMap: TokenInstance | null = useMemo(() => {
+        if (!myUserId) return null;
+        // eigener Token auf der aktiven Karte (characterId=myCurrentCharId oder ownerUserId=myUserId)
+        return tokens.find((t) =>
+            String(t.ownerUserId || '') === String(myUserId) &&
+            (!myCurrentCharId || String(t.characterId || '') === String(myCurrentCharId))
+        ) || null;
+    }, [tokens, myUserId, myCurrentCharId]);
+
+    const myTokenLight: LightSource | null = useMemo(() => {
+        if (!myTokenOnMap || !lighting) return null;
+        return lighting.lights.find((l) => l.kind === 'token' && l.tokenId === myTokenOnMap.id) || null;
+    }, [myTokenOnMap, lighting]);
+
+    const togglePlayerTorch = () => {
+        if (!id || !activeMapId || !myTokenOnMap) return;
+        const socket = getSocket();
+        if (myTokenLight) {
+            socket.emit('campaign:lighting:light:update', {
+                campaignId: id, mapId: activeMapId, lightId: myTokenLight.id,
+                patch: { enabled: !myTokenLight.enabled },
+            }, () => {});
+        } else {
+            const preset = LIGHT_PRESETS.find((p) => p.key === 'fackel')!;
+            socket.emit('campaign:lighting:light:add', {
+                campaignId: id, mapId: activeMapId,
+                light: {
+                    kind: 'token', tokenId: myTokenOnMap.id,
+                    bright: preset.bright, dim: preset.dim, color: preset.color,
+                    label: 'Fackel', enabled: true,
+                },
+            }, () => {});
+        }
+    };
+
+    // Fog-Tool-Interaktions-Handler (werden inline im JSX unten eingehangen).
+    // Keine innere Komponente -> React mountet den Layer nicht bei jedem Re-Render neu.
+    //
+    // WICHTIG: viewTransform.panX/Y sind in wrap-lokalen Pixeln. Die Event-
+    // Koordinaten (clientX/Y) sind aber viewport-absolut. Wir muessen also
+    // mit getBoundingClientRect() auf wrap-lokal normalisieren.
+    const fogLayerRef = useRef<HTMLDivElement | null>(null);
+    const toFieldCoords = useCallback((ev: { clientX: number; clientY: number }) => {
+        if (!viewTransformRef.current) return { fx: 0, fy: 0 };
+        const el = fogLayerRef.current;
+        if (!el) return screenToField(viewTransformRef.current, ev.clientX, ev.clientY);
+        const r = el.getBoundingClientRect();
+        return screenToField(viewTransformRef.current, ev.clientX - r.left, ev.clientY - r.top);
+    }, []);
+    const fogToolRef = useRef(fogTool);
+    fogToolRef.current = fogTool;
+    const fogRadiusRef = useRef(fogRadius);
+    fogRadiusRef.current = fogRadius;
+
+    const onFogDown = useCallback((ev: React.MouseEvent) => {
+        if (ev.button !== 0) return;
+        const tool = fogToolRef.current;
+        if (!tool || !viewTransformRef.current) return;
+        const { fx, fy } = toFieldCoords(ev);
+        if (tool === 'brush-cover' || tool === 'brush-reveal') {
+            brushLastRef.current = { fx, fy };
+            sendFogOps([{ kind: tool === 'brush-cover' ? 'cover' : 'reveal', shape: 'circle', x: fx, y: fy, r: fogRadiusRef.current }]);
+            const onMove = (e: MouseEvent) => {
+                const { fx: cx, fy: cy } = toFieldCoords(e);
+                const last = brushLastRef.current;
+                if (!last) return;
+                const d = Math.hypot(cx - last.fx, cy - last.fy);
+                if (d >= fogRadiusRef.current * 0.5) {
+                    brushLastRef.current = { fx: cx, fy: cy };
+                    sendFogOps([{ kind: fogToolRef.current === 'brush-cover' ? 'cover' : 'reveal', shape: 'circle', x: cx, y: cy, r: fogRadiusRef.current }]);
+                }
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove, true);
+                document.removeEventListener('mouseup', onUp, true);
+                brushLastRef.current = null;
+            };
+            document.addEventListener('mousemove', onMove, true);
+            document.addEventListener('mouseup', onUp, true);
+            return;
+        }
+        if (tool === 'rect-cover' || tool === 'rect-reveal') {
+            rectStartRef.current = { fx, fy };
+            setRectPreview({ x: fx, y: fy, w: 0, h: 0 });
+            const onMove = (e: MouseEvent) => {
+                const { fx: cx, fy: cy } = toFieldCoords(e);
+                const s = rectStartRef.current!;
+                setRectPreview({
+                    x: Math.min(s.fx, cx), y: Math.min(s.fy, cy),
+                    w: Math.abs(cx - s.fx), h: Math.abs(cy - s.fy),
+                });
+            };
+            const onUp = (e: MouseEvent) => {
+                document.removeEventListener('mousemove', onMove, true);
+                document.removeEventListener('mouseup', onUp, true);
+                const { fx: cx, fy: cy } = toFieldCoords(e);
+                const s = rectStartRef.current;
+                rectStartRef.current = null;
+                setRectPreview(null);
+                if (!s) return;
+                const rect = {
+                    x: Math.min(s.fx, cx), y: Math.min(s.fy, cy),
+                    w: Math.abs(cx - s.fx), h: Math.abs(cy - s.fy),
+                };
+                if (rect.w > 0.1 && rect.h > 0.1) {
+                    sendFogOps([{
+                        kind: fogToolRef.current === 'rect-cover' ? 'cover' : 'reveal',
+                        shape: 'rect', ...rect,
+                    }]);
+                }
+            };
+            document.addEventListener('mousemove', onMove, true);
+            document.addEventListener('mouseup', onUp, true);
+            return;
+        }
+        if (tool === 'place-light') {
+            addStaticLight(fx, fy);
+            setFogTool(null);
+            return;
+        }
+    }, [toFieldCoords, sendFogOps, addStaticLight]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const onFogClick = useCallback((ev: React.MouseEvent) => {
+        const tool = fogToolRef.current;
+        if (tool === 'poly-cover' || tool === 'poly-reveal') {
+            const { fx, fy } = toFieldCoords(ev);
+            setPolyPoints((p) => [...p, [fx, fy]]);
+        }
+    }, [toFieldCoords]);
+    const onFogMove = useCallback((ev: React.MouseEvent) => {
+        const tool = fogToolRef.current;
+        if (tool === 'poly-cover' || tool === 'poly-reveal') {
+            setPolyMouse(toFieldCoords(ev));
+        }
+    }, [toFieldCoords]);
+    const onFogDouble = useCallback(() => {
+        const tool = fogToolRef.current;
+        if ((tool === 'poly-cover' || tool === 'poly-reveal') && polyPoints.length >= 3) {
+            sendFogOps([{
+                kind: tool === 'poly-cover' ? 'cover' : 'reveal',
+                shape: 'poly', points: polyPoints,
+            }]);
+            setPolyPoints([]);
+            setPolyMouse(null);
+        }
+    }, [polyPoints, sendFogOps]);
+
+    // JSX-Fragment, das wir in beide Karten-Branches einhaengen.
+    const brushRadiusPx = (fogTool === 'brush-cover' || fogTool === 'brush-reveal') && viewTransform
+        ? fogRadius * viewTransform.baseFieldPx * viewTransform.scale : 0;
+
+    const fogToolOverlay = (isOwner && fogTool && viewTransform) ? (
+        <div
+            ref={fogLayerRef}
+            className="fog-tool-layer"
+            style={{ position: 'absolute', inset: 0, zIndex: 6, cursor: 'crosshair' }}
+            onMouseDown={onFogDown}
+            onClick={onFogClick}
+            onMouseMove={onFogMove}
+            onDoubleClick={onFogDouble}
+        >
+            <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} width="100%" height="100%">
+                {rectPreview && (() => {
+                    const a = fieldToScreen(viewTransform, rectPreview.x, rectPreview.y);
+                    const b = fieldToScreen(viewTransform, rectPreview.x + rectPreview.w, rectPreview.y + rectPreview.h);
+                    return <rect x={a.sx} y={a.sy} width={b.sx - a.sx} height={b.sy - a.sy}
+                        fill={fogTool === 'rect-cover' ? 'rgba(0,0,0,0.4)' : 'rgba(230,197,106,0.3)'}
+                        stroke="#e6c56a" strokeDasharray="4,3" />;
+                })()}
+                {(fogTool === 'poly-cover' || fogTool === 'poly-reveal') && polyPoints.length > 0 && (() => {
+                    const pts = polyPoints
+                        .map(([px, py]) => fieldToScreen(viewTransform, px, py))
+                        .map((p) => `${p.sx},${p.sy}`).join(' ');
+                    const live = polyMouse
+                        ? ` ${fieldToScreen(viewTransform, polyMouse.fx, polyMouse.fy).sx},${fieldToScreen(viewTransform, polyMouse.fx, polyMouse.fy).sy}`
+                        : '';
+                    return <polyline points={pts + live} fill="rgba(230,197,106,0.12)" stroke="#e6c56a" strokeWidth={2} strokeDasharray="5,4" />;
+                })()}
+            </svg>
+            {brushRadiusPx > 0 && <BrushCursor radiusPx={brushRadiusPx} cover={fogTool === 'brush-cover'} />}
+        </div>
+    ) : null;
+
     if (loadError) {
         return (
             <div className="game-root" style={{ gridTemplateColumns: "1fr", gridTemplateAreas: '"centre"' }}>
@@ -748,6 +1077,99 @@ const GamePage: React.FC = () => {
                     </select>
                     <Link to="/charaktere" className="muted-link">Verwalten</Link>
                 </div>
+
+                {/* Spieler-Fackel-Button (nur wenn Nicht-GM UND eigener Token auf Karte) */}
+                {!isOwner && myTokenOnMap && (
+                    <button
+                        className={`btn-rust player-torch${myTokenLight?.enabled ? ' active' : ''}`}
+                        style={{ marginTop: 10, width: '100%' }}
+                        onClick={togglePlayerTorch}
+                        title={myTokenLight?.enabled ? 'Fackel löschen' : 'Fackel entzünden'}
+                    >
+                        {myTokenLight?.enabled ? '🔥 Fackel aus' : '🕯 Fackel an'}
+                    </button>
+                )}
+
+                {isOwner && activeMapId && (
+                    <div className="lighting-panel">
+                        <h3>Nebel</h3>
+                        {!worldDims && (
+                            <div className="ph-card" style={{ fontSize: 12 }}>
+                                {activeMap?.kind === '2d-image'
+                                    ? 'Erst Raster kalibrieren (Button »Raster« unten), dann wirkt der Nebel.'
+                                    : 'Karte lädt &hellip;'}
+                            </div>
+                        )}
+                        {worldDims && (
+                            <>
+                                <div className="tool-row">
+                                    <button data-tool="brush-cover" className={`btn-tool${fogTool === 'brush-cover' ? ' active' : ''}`} onClick={() => setFogTool(fogTool === 'brush-cover' ? null : 'brush-cover')} title="Abdecken (Pinsel)">🖌 Decken</button>
+                                    <button data-tool="brush-reveal" className={`btn-tool${fogTool === 'brush-reveal' ? ' active' : ''}`} onClick={() => setFogTool(fogTool === 'brush-reveal' ? null : 'brush-reveal')} title="Aufdecken (Pinsel)">🪄 Zeigen</button>
+                                </div>
+                                <div className="tool-row">
+                                    <button data-tool="rect-cover" className={`btn-tool${fogTool === 'rect-cover' ? ' active' : ''}`} onClick={() => setFogTool(fogTool === 'rect-cover' ? null : 'rect-cover')} title="Rechteck abdecken">▭ Decken</button>
+                                    <button data-tool="rect-reveal" className={`btn-tool${fogTool === 'rect-reveal' ? ' active' : ''}`} onClick={() => setFogTool(fogTool === 'rect-reveal' ? null : 'rect-reveal')} title="Rechteck aufdecken">▭ Zeigen</button>
+                                </div>
+                                <div className="tool-row">
+                                    <button data-tool="poly-cover" className={`btn-tool${fogTool === 'poly-cover' ? ' active' : ''}`} onClick={() => { setFogTool(fogTool === 'poly-cover' ? null : 'poly-cover'); setPolyPoints([]); }} title="Polygon abdecken (Doppelklick/Enter)">⟳ Decken</button>
+                                    <button data-tool="poly-reveal" className={`btn-tool${fogTool === 'poly-reveal' ? ' active' : ''}`} onClick={() => { setFogTool(fogTool === 'poly-reveal' ? null : 'poly-reveal'); setPolyPoints([]); }} title="Polygon aufdecken">⟳ Zeigen</button>
+                                </div>
+                                {(fogTool === 'brush-cover' || fogTool === 'brush-reveal') && (
+                                    <>
+                                        <label className="slider-label">Pinsel: {fogRadius} Felder</label>
+                                        <input type="range" min={1} max={12} step={1} value={fogRadius}
+                                               onChange={(e) => setFogRadius(parseInt(e.target.value, 10))} />
+                                    </>
+                                )}
+                                <div className="tool-row">
+                                    <button className="btn-tool" onClick={coverAll} title="Alles abdecken">Alles decken</button>
+                                    <button className="btn-tool" onClick={revealAll} title="Alles aufdecken">Alles zeigen</button>
+                                </div>
+                                <label className="slider-label">GM-Transparenz: {Math.round(gmFogAlpha * 100)}%</label>
+                                <input type="range" min={0.1} max={0.9} step={0.05} value={gmFogAlpha}
+                                       onChange={(e) => setGmFogAlpha(parseFloat(e.target.value))} />
+                            </>
+                        )}
+
+                        <h3 style={{ marginTop: 14 }}>Dunkelheit &amp; Licht</h3>
+                        <label className="toggle-row">
+                            <input type="checkbox" checked={!!lighting?.darkness} onChange={(e) => setDarknessOnServer(e.target.checked)} />
+                            <span>Karte verdunkeln</span>
+                        </label>
+                        <label className="slider-label">GM-Sichtbarkeit in Dunkelheit: {Math.round((1 - gmDarkAlpha) * 100)}%</label>
+                        <input type="range" min={0.1} max={0.85} step={0.05} value={gmDarkAlpha}
+                               onChange={(e) => setGmDarkAlpha(parseFloat(e.target.value))} />
+                        <label className="slider-label" style={{ marginTop: 8 }}>Lichtpreset</label>
+                        <select value={lightPreset} onChange={(e) => setLightPreset(e.target.value)}>
+                            {LIGHT_PRESETS.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+                        </select>
+                        <button className={`btn-tool${fogTool === 'place-light' ? ' active' : ''}`}
+                                style={{ width: '100%', marginTop: 6 }}
+                                onClick={() => setFogTool(fogTool === 'place-light' ? null : 'place-light')}>
+                            {fogTool === 'place-light' ? 'Klick abbrechen' : '✦ Licht platzieren'}
+                        </button>
+                        {lighting && lighting.lights.length > 0 && (
+                            <div className="light-list">
+                                {lighting.lights.map((l) => {
+                                    const posLabel = l.kind === 'token'
+                                        ? `am Token ${tokens.find((t) => t.id === l.tokenId)?.label || l.tokenId?.slice(0, 8) || '?'}`
+                                        : `@ ${l.x.toFixed(1)},${l.y.toFixed(1)}`;
+                                    return (
+                                        <div key={l.id} className="light-row">
+                                            <input type="checkbox" checked={l.enabled} onChange={() => toggleLight(l)} />
+                                            <span className="dot" style={{ background: l.color }} />
+                                            <div className="info">
+                                                <div className="lbl">{l.label || (l.kind === 'token' ? 'Token-Licht' : 'Licht')}</div>
+                                                <div className="sub">{l.bright}/{l.dim} ft · {posLabel}</div>
+                                            </div>
+                                            <button className="btn-ghost danger" onClick={() => removeLight(l)} title="Entfernen">✕</button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {isOwner && (
                     <>
@@ -885,6 +1307,19 @@ const GamePage: React.FC = () => {
                                 characters={campaign.characters}
                             />
                         )}
+                        {viewTransform && lighting && worldDims && (
+                            <LightingLayer
+                                lighting={lighting}
+                                vt={viewTransform as ViewT}
+                                isOwner={!!isOwner}
+                                tokens={tokens}
+                                worldFieldsW={worldDims.w}
+                                worldFieldsH={worldDims.h}
+                                gmFogAlpha={gmFogAlpha}
+                                gmDarkAlpha={gmDarkAlpha}
+                            />
+                        )}
+                        {fogToolOverlay}
                         <div className="game-zoom">
                             <button onClick={() => bumpZoom(-1)} title="Verkleinern">&minus;</button>
                             <button onClick={resetZoom} title="Zurücksetzen">&#9711;</button>
@@ -947,6 +1382,19 @@ const GamePage: React.FC = () => {
                                         characters={campaign.characters}
                                     />
                                 )}
+                                {viewTransform && lighting && worldDims && (
+                                    <LightingLayer
+                                        lighting={lighting}
+                                        vt={viewTransform as ViewT}
+                                        isOwner={!!isOwner}
+                                        tokens={tokens}
+                                        worldFieldsW={worldDims.w}
+                                        worldFieldsH={worldDims.h}
+                                        gmFogAlpha={gmFogAlpha}
+                                        gmDarkAlpha={gmDarkAlpha}
+                                    />
+                                )}
+                                {fogToolOverlay}
                             </>
                         )}
                     </div>
@@ -1043,6 +1491,31 @@ const GamePage: React.FC = () => {
                 )}
             </div>
         </div>
+    );
+};
+
+// Cursor-Visualisierung fuer den Fog-Pinsel: ein folgt-der-Maus-Kreis.
+const BrushCursor: React.FC<{ radiusPx: number; cover: boolean }> = ({ radiusPx, cover }) => {
+    const [pos, setPos] = React.useState<{ x: number; y: number } | null>(null);
+    React.useEffect(() => {
+        const onMove = (e: MouseEvent) => setPos({ x: e.clientX, y: e.clientY });
+        window.addEventListener('mousemove', onMove);
+        return () => window.removeEventListener('mousemove', onMove);
+    }, []);
+    if (!pos) return null;
+    return (
+        <div style={{
+            position: 'fixed',
+            left: pos.x - radiusPx,
+            top: pos.y - radiusPx,
+            width: radiusPx * 2,
+            height: radiusPx * 2,
+            borderRadius: '50%',
+            border: '2px dashed ' + (cover ? '#e6c56a' : '#9fe6c6'),
+            background: cover ? 'rgba(0,0,0,0.18)' : 'rgba(159,230,198,0.12)',
+            pointerEvents: 'none',
+            zIndex: 9999,
+        }} />
     );
 };
 

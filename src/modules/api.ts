@@ -287,7 +287,40 @@ const apiService = {
             )
         );
     },
+
+    // ---------- Lighting (Nebel + Dunkelheit + Lichter) ----------
+    getMapLighting: async (
+        campaignId: string,
+        mapId: string
+    ): Promise<{ lighting: MapLighting }> => {
+        return handleRequest(
+            api.get<{ lighting: MapLighting }>(
+                `/api/campaigns/${campaignId}/maps/${mapId}/lighting`
+            )
+        );
+    },
 };
+
+export interface LightSource {
+    id: string;
+    kind: 'static' | 'token';
+    tokenId: string | null;
+    x: number;
+    y: number;
+    bright: number; // Fuß
+    dim: number;    // Fuß
+    color: string;
+    label: string;
+    enabled: boolean;
+}
+
+export interface MapLighting {
+    fogW: number;
+    fogH: number;
+    fogBits: string; // Base64
+    darkness: boolean;
+    lights: LightSource[];
+}
 
 export interface MapGrid {
     cellPx: number | null;
