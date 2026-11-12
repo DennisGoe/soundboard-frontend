@@ -7,6 +7,7 @@ import CampaignDetailPage from "../pages/CampaignDetailPage";
 import GamePage from "../pages/GamePage";
 import MapsListPage from "../pages/MapsListPage";
 import MapEditorPage from "../pages/MapEditorPage";
+import CharactersPage from "../pages/CharactersPage";
 import ProtectedRoute from "../components/ProtectedRoute";
 import { useAuth } from "../hooks/useAuth";
 
@@ -62,6 +63,11 @@ const CustomRouter = (): JSX.Element => {
                 <Route path="/karten/:id/bearbeiten" element={
                     <ProtectedRoute>
                         <MapEditorPage/>
+                    </ProtectedRoute>
+                }/>
+                <Route path="/charaktere" element={
+                    <ProtectedRoute>
+                        <CharactersPage/>
                     </ProtectedRoute>
                 }/>
                 <Route path="/bilder" element={<BilderRedirect/>}/>

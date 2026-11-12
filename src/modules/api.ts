@@ -234,7 +234,69 @@ const apiService = {
         const query = q ? `?q=${encodeURIComponent(q)}` : '';
         return handleRequest(api.get<{ users: UserHit[] }>(`/api/users${query}`));
     },
+
+    // ---------- Charaktere ----------
+    listCharacters: async (): Promise<{ characters: CharacterDoc[] }> => {
+        return handleRequest(api.get<{ characters: CharacterDoc[] }>('/api/characters'));
+    },
+    createCharacter: async (body: { name: string }): Promise<{ character: CharacterDoc }> => {
+        return handleRequest(api.post<{ character: CharacterDoc }>('/api/characters', body));
+    },
+    updateCharacter: async (id: string, body: { name: string }): Promise<{ character: CharacterDoc }> => {
+        return handleRequest(api.put<{ character: CharacterDoc }>(`/api/characters/${id}`, body));
+    },
+    deleteCharacter: async (id: string): Promise<{ msg: string }> => {
+        return handleRequest(api.delete<{ msg: string }>(`/api/characters/${id}`));
+    },
+    uploadCharacterToken: async (id: string, file: File): Promise<{ character: CharacterDoc }> => {
+        const fd = new FormData();
+        fd.append('image', file);
+        return handleRequest(
+            api.post<{ character: CharacterDoc }>(`/api/characters/${id}/token`, fd, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            })
+        );
+    },
+
+    // ---------- Charakter-Auswahl pro Kampagne ----------
+    setMyCharacter: async (
+        campaignId: string,
+        characterId: string | null
+    ): Promise<{ campaign: Campaign }> => {
+        return handleRequest(
+            api.put<{ campaign: Campaign }>(
+                `/api/campaigns/${campaignId}/my-character`,
+                { characterId }
+            )
+        );
+    },
+
+    // ---------- Map-Grid (2d-image) ----------
+    setMapGrid: async (mapId: string, grid: MapGrid | null): Promise<{ map: MapFull }> => {
+        return handleRequest(api.put<{ map: MapFull }>(`/api/maps/${mapId}/grid`, { grid }));
+    },
+
+    // ---------- Tokens initial (REST, danach via Socket) ----------
+    getMapTokens: async (
+        campaignId: string,
+        mapId: string
+    ): Promise<{ tokens: TokenInstance[]; groups: TokenGroup[] }> => {
+        return handleRequest(
+            api.get<{ tokens: TokenInstance[]; groups: TokenGroup[] }>(
+                `/api/campaigns/${campaignId}/maps/${mapId}/tokens`
+            )
+        );
+    },
 };
+
+export interface MapGrid {
+    cellPx: number | null;
+    offsetX: number;
+    offsetY: number;
+    show: boolean;
+    color: string;
+    opacity: number;
+}
 
 export interface MapListItem {
     _id: string;
@@ -245,6 +307,7 @@ export interface MapListItem {
     imageUrl?: string | null;
     createdAt: string;
     updatedAt: string;
+    grid?: MapGrid | null;
 }
 
 export interface MapFull extends MapListItem {
@@ -256,6 +319,39 @@ export interface PlayerRef {
     username: string;
 }
 
+export interface CharacterDoc {
+    _id: string;
+    owner: string;
+    name: string;
+    tokenUrl: string | null;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface CharacterSelection {
+    userId: string;
+    characterId: string;
+}
+
+export interface TokenInstance {
+    id: string;
+    characterId: string | null;
+    ownerUserId: string | null;
+    label: string;
+    color: string;
+    x: number;
+    y: number;
+    size: number;
+    groupId: string | null;
+    locked: boolean;
+}
+
+export interface TokenGroup {
+    id: string;
+    name: string;
+    locked: boolean;
+}
+
 export interface Campaign {
     _id: string;
     name: string;
@@ -265,6 +361,8 @@ export interface Campaign {
     mapIds: string[];
     activeMapId: string | null;
     role: 'owner' | 'player';
+    characterSelections: CharacterSelection[];
+    characters: CharacterDoc[];
     createdAt: string;
     updatedAt: string;
 }

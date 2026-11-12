@@ -427,3 +427,210 @@
     color: #e8e1cd;
     border: 1px solid #0a0a0a;
 }
+
+/* ----- Spielbrett: Char-Picker in der linken Leiste ----- */
+.my-char-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+.my-char-picker select {
+    background: #1b120a;
+    color: #e6c56a;
+    border: 1px solid rgba(194, 160, 83, 0.4);
+    padding: 6px 8px;
+    border-radius: 3px;
+    font-family: "Crimson Text", "Georgia", serif;
+    font-size: 13px;
+}
+.my-char-picker .muted-link {
+    color: #a99573;
+    font-style: italic;
+    font-size: 12px;
+    text-decoration: none;
+    text-align: right;
+}
+.my-char-picker .muted-link:hover { color: #e6c56a; }
+
+/* Palette: Token des Spielers im linken Panel */
+.token-palette-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(194, 160, 83, 0.25);
+    padding: 6px 8px;
+    margin-bottom: 6px;
+    border-radius: 3px;
+    color: #e8e1cd;
+    font-family: "Crimson Text", "Georgia", serif;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+}
+.token-palette-item:hover { background: rgba(194, 160, 83, 0.12); }
+
+/* ----- Token-DIVs ueber der Karte ----- */
+.token-layer { z-index: 3; }
+.token-on-map {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid #9b2a1e;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.7), 0 0 0 2px rgba(0, 0, 0, 0.5) inset;
+    overflow: hidden;
+    background: #1b120a;
+    transition: box-shadow 0.08s ease-out;
+    user-select: none;
+    touch-action: none;
+}
+.token-on-map.movable { cursor: grab; }
+.token-on-map.dragging { cursor: grabbing; z-index: 10; }
+.token-on-map.selected {
+    box-shadow:
+        0 0 0 3px #e6c56a,
+        0 2px 10px rgba(230, 197, 106, 0.6),
+        0 0 0 2px rgba(0, 0, 0, 0.5) inset;
+}
+.token-on-map img {
+    width: 100%; height: 100%; object-fit: cover; pointer-events: none;
+    display: block;
+}
+.token-on-map .letter {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    color: #f1dca2;
+    font-family: "Cinzel", serif;
+    font-weight: 700;
+    font-size: clamp(10px, 30%, 48px);
+}
+.token-on-map .lock-badge {
+    position: absolute;
+    top: 2px; right: 2px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #f3a8a0;
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 999px;
+    pointer-events: none;
+}
+
+/* ----- Grid-Settings-Panel (GM) ----- */
+.grid-settings-handle {
+    position: absolute;
+    bottom: 12px;
+    left: 14px;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.grid-settings-panel {
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid rgba(194, 160, 83, 0.4);
+    border-radius: 3px;
+    padding: 10px;
+    width: 240px;
+    color: #d7bd7a;
+    font-family: "Cinzel", serif;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+}
+.grid-settings-panel label {
+    display: block;
+    margin: 6px 0 2px 0;
+    color: #cbb989;
+    text-transform: uppercase;
+}
+.grid-settings-panel input[type="range"],
+.grid-settings-panel input[type="color"],
+.grid-settings-panel input[type="number"] {
+    width: 100%;
+    background: #1b120a;
+    color: #e6c56a;
+    border: 1px solid rgba(194, 160, 83, 0.3);
+    padding: 4px 6px;
+    border-radius: 3px;
+    box-sizing: border-box;
+}
+.grid-settings-panel .group-title {
+    font-family: "Cinzel", serif;
+    color: #e6c56a;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    border-bottom: 1px solid rgba(194, 160, 83, 0.2);
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+}
+.grid-settings-panel .hint {
+    font-style: italic;
+    color: #a99573;
+    font-size: 11px;
+    margin: 4px 0;
+    letter-spacing: 0;
+    text-transform: none;
+}
+.grid-settings-panel .toggle {
+    margin-top: 6px;
+}
+.grid-settings-panel .btn-ghost {
+    background: transparent;
+    color: #d7bd7a;
+    border: 1px solid rgba(194, 160, 83, 0.4);
+    padding: 6px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: "Cinzel", serif;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+.grid-settings-panel .btn-ghost:hover { background: rgba(194, 160, 83, 0.12); }
+
+/* ----- Selektions-Ops im rechten Panel ----- */
+.selected-ops {
+    border-top: 1px solid rgba(194, 160, 83, 0.25);
+    padding: 10px 12px;
+    color: #cbb989;
+    font-family: "Cinzel", serif;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+}
+.selected-ops .group-title {
+    text-transform: uppercase;
+    color: #e6c56a;
+    margin-bottom: 6px;
+}
+.selected-ops .sel-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(194, 160, 83, 0.2);
+    padding: 4px 6px;
+    border-radius: 3px;
+}
+.selected-ops .sel-row .name {
+    flex: 1;
+    color: #e8e1cd;
+    font-family: "Crimson Text", "Georgia", serif;
+    letter-spacing: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.selected-ops .btn-ghost {
+    background: transparent;
+    color: #d7bd7a;
+    border: 1px solid rgba(194, 160, 83, 0.3);
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: "Cinzel", serif;
+    font-size: 11px;
+}
+.selected-ops .btn-ghost.danger { color: #f3a8a0; border-color: rgba(192, 78, 63, 0.4); }
+.selected-ops .btn-ghost:hover { background: rgba(194, 160, 83, 0.1); }
