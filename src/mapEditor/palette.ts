@@ -164,14 +164,14 @@ export const OBJECT_STAMPS: StampDef[] = [
         },
     },
     {
-        key: 'door', name: 'Tuer-Stempel',
+        key: 'door', name: 'Tür-Stempel',
         draw: (ctx) => {
             rect(ctx, -0.35, -0.12, 0.7, 0.24, '#7a4a22', '#1f0f05');
             circle(ctx, 0.22, 0, 0.04, '#e6c56a');
         },
     },
     {
-        key: 'skull', name: 'Schaedel',
+        key: 'skull', name: 'Schädel',
         draw: (ctx) => {
             circle(ctx, 0, -0.03, 0.22, '#e8dfc6', '#1a1510');
             rect(ctx, -0.08, 0.15, 0.16, 0.08, '#e8dfc6', '#1a1510');
@@ -180,7 +180,7 @@ export const OBJECT_STAMPS: StampDef[] = [
         },
     },
     {
-        key: 'bookshelf', name: 'Buecherregal',
+        key: 'bookshelf', name: 'Bücherregal',
         draw: (ctx) => {
             rect(ctx, -0.35, -0.3, 0.7, 0.6, '#4a2e15', '#1a0e05');
             // Buecher

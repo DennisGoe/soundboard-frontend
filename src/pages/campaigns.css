@@ -258,10 +258,12 @@
 }
 .card-footer {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
     margin-top: 14px;
     gap: 8px;
+    min-width: 0;
 }
 
 /* Dunkle Pille a la Level-Badge in 38 */
@@ -292,7 +294,14 @@
 
 .card-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
+    justify-content: flex-end;
+}
+.card-actions .btn-ghost {
+    padding: 6px 10px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
 }
 
 /* ===== leeres State ===== */

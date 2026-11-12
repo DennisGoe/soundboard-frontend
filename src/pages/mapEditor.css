@@ -69,7 +69,7 @@
 
 .editor-body {
     display: grid;
-    grid-template-columns: 240px 1fr;
+    grid-template-columns: 280px 1fr;
     overflow: hidden;
 }
 
@@ -153,28 +153,35 @@
 
 .obj-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
 }
 .obj-swatch {
     background: #3a2a1b;
     border: 2px solid rgba(194, 160, 83, 0.25);
     border-radius: 3px;
-    padding: 4px;
+    padding: 6px 4px;
     cursor: pointer;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
+    min-width: 0;
+    overflow: hidden;
 }
 .obj-swatch.active { border-color: #e6c56a; }
 .obj-swatch canvas { display: block; }
 .obj-swatch .label {
     color: #d7bd7a;
     font-family: "Cinzel", serif;
-    font-size: 9px;
-    letter-spacing: 0.08em;
+    font-size: 10px;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    text-align: center;
 }
 
 .brush-size {

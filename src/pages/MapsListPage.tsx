@@ -52,10 +52,6 @@ const MapsListPage: React.FC = () => {
                         <span className="diamond" />
                         <span className="line" />
                     </div>
-                    <p className="sub">
-                        Deine Battlemaps, 3D-Schauplätze und hochgeladenen
-                        Karten an einem Ort.
-                    </p>
                 </header>
 
                 {error && <div className="load-error">{error}</div>}

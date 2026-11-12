@@ -115,14 +115,15 @@ export function render(
         ctx.restore();
     }
 
-    // Objekte
+    // Objekte: Faktor 1.25 bringt die ~0.4er-Stempel auf ~0.5 (fuellen das Feld).
+    const OBJECT_SCALE = 1.25;
     for (const o of doc.objects) {
         const stamp = STAMP_INDEX[o.type];
         if (!stamp) continue;
         ctx.save();
         ctx.translate(px(o.x), py(o.y));
         ctx.rotate(o.rot || 0);
-        const s = (o.scale || 1) * unit;
+        const s = (o.scale || 1) * unit * OBJECT_SCALE;
         ctx.scale(s, s);
         try {
             stamp.draw(ctx);
@@ -135,7 +136,7 @@ export function render(
             ctx.strokeStyle = '#e6c56a';
             ctx.lineWidth = 2;
             ctx.setLineDash([4, 3]);
-            ctx.strokeRect(px(o.x) - unit * 0.42, py(o.y) - unit * 0.42, unit * 0.84, unit * 0.84);
+            ctx.strokeRect(px(o.x) - unit * 0.52, py(o.y) - unit * 0.52, unit * 1.04, unit * 1.04);
             ctx.restore();
         }
     }
