@@ -88,6 +88,20 @@ const CharactersPage: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="card-divider" />
+                                <div className="char-bonus-row">
+                                    <label>Initiative-Bonus:</label>
+                                    <BonusEditor
+                                        value={c.initiativeBonus ?? 0}
+                                        onChange={async (v) => {
+                                            try {
+                                                await apiService.updateCharacter(c._id, { initiativeBonus: v });
+                                                await load();
+                                            } catch (e: any) {
+                                                alert(e?.msg || "Speichern fehlgeschlagen.");
+                                            }
+                                        }}
+                                    />
+                                </div>
                                 <div className="card-footer">
                                     <UploadTokenInput onFile={(f) => onUpload(c, f)} />
                                     <div className="card-actions">
@@ -266,6 +280,34 @@ const ConfirmDialog: React.FC<{
                 </div>
             </div>
         </div>
+    );
+};
+
+const BonusEditor: React.FC<{ value: number; onChange: (v: number) => void | Promise<void> }> = ({
+    value, onChange,
+}) => {
+    const [buf, setBuf] = useState(String(value));
+    const [busy, setBusy] = useState(false);
+    useEffect(() => { setBuf(String(value)); }, [value]);
+    const commit = async () => {
+        const v = parseInt(buf, 10);
+        if (!Number.isFinite(v) || v < -10 || v > 30) { setBuf(String(value)); return; }
+        if (v === value) return;
+        setBusy(true);
+        try { await onChange(v); } finally { setBusy(false); }
+    };
+    return (
+        <input
+            type="number"
+            className="bonus-input"
+            value={buf}
+            min={-10}
+            max={30}
+            disabled={busy}
+            onChange={(e) => setBuf(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        />
     );
 };
 

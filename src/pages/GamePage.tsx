@@ -4,7 +4,9 @@ import apiService, {
     Campaign, CharacterDoc, ChatMessage, MapFull, MapGrid, MapListItem,
     MapLighting, LightSource,
     TokenGroup, TokenInstance,
+    Initiative, InventoryDoc,
 } from "../modules/api";
+import { InitiativePanel, InventoryPanel } from "./combatPanels";
 import { getSocket } from "../modules/notifications/socket";
 import { useAuth } from "../hooks/useAuth";
 import "./campaigns.css";
@@ -119,17 +121,25 @@ const GamePage: React.FC = () => {
     // laden wir sie aus der Chars-Antwort (owner-Feld des eigenen Chars).
     const [myUserId, setMyUserId] = useState<string | null>(null);
 
+    // Initiative + Inventar (Panels in der rechten Seitenleiste).
+    const [initiative, setInitiative] = useState<Initiative | null>(null);
+    const [myInventory, setMyInventory] = useState<InventoryDoc | null>(null);
+    const [allInventories, setAllInventories] = useState<InventoryDoc[]>([]);
+    const [rightTab, setRightTab] = useState<'chat' | 'initiative' | 'inventory'>('chat');
+
     // Initial-Load
     useEffect(() => {
         if (!id) return;
         let cancelled = false;
         (async () => {
             try {
-                const [cRes, mRes, chRes, chaRes] = await Promise.all([
+                const [cRes, mRes, chRes, chaRes, iniRes, invRes] = await Promise.all([
                     apiService.getCampaign(id),
                     apiService.listMaps(),
                     apiService.getChat(id),
                     apiService.listCharacters(),
+                    apiService.getInitiative(id).catch(() => null),
+                    apiService.getMyInventory(id).catch(() => null),
                 ]);
                 if (cancelled) return;
                 setCampaign(cRes.campaign);
@@ -138,8 +148,13 @@ const GamePage: React.FC = () => {
                 setMessages(chRes.messages);
                 setMyCharacters(chaRes.characters);
                 if (chaRes.characters.length > 0) setMyUserId(String(chaRes.characters[0].owner));
-                else {
-                    // Fallback: sich selbst in presence spaeter identifizieren.
+                if (iniRes) setInitiative(iniRes.initiative);
+                if (invRes) setMyInventory(invRes.inventory);
+                // GM: alle Inventare in einem Rutsch.
+                if (cRes.campaign.role === 'owner') {
+                    apiService.getAllInventories(id).then((r) => {
+                        if (!cancelled) setAllInventories(r.inventories);
+                    }).catch(() => {});
                 }
             } catch (e: any) {
                 if (!cancelled) setLoadError(e?.msg || "Spielbrett konnte nicht geladen werden.");
@@ -218,6 +233,26 @@ const GamePage: React.FC = () => {
             }));
         };
 
+        const onInitiative = (p: { campaignId: string; initiative: Initiative }) => {
+            if (p.campaignId !== id) return;
+            setInitiative(p.initiative);
+        };
+        const onInventory = (p: { campaignId: string; inventory: InventoryDoc }) => {
+            if (p.campaignId !== id) return;
+            // Mein eigenes Inventar aktualisieren:
+            if (myUserId && p.inventory.userId === myUserId) {
+                setMyInventory(p.inventory);
+            }
+            // Falls GM: Liste aller Inventare mitpflegen.
+            setAllInventories((prev) => {
+                const idx = prev.findIndex((x) => x.userId === p.inventory.userId);
+                if (idx === -1) return [...prev, p.inventory];
+                const next = prev.slice();
+                next[idx] = { ...next[idx], ...p.inventory };
+                return next;
+            });
+        };
+
         socket.on("campaign:presence", onPresence);
         socket.on("campaign:chat", onChat);
         socket.on("campaign:activeMap", onActive);
@@ -227,6 +262,8 @@ const GamePage: React.FC = () => {
         socket.on("campaign:tokens:update", onTokUpdate);
         socket.on("campaign:tokens:tick", onTokTick);
         socket.on("campaign:lighting:update", onLighting);
+        socket.on("campaign:initiative:update", onInitiative);
+        socket.on("campaign:inventory:update", onInventory);
 
         return () => {
             socket.off("connect", join);
@@ -239,10 +276,12 @@ const GamePage: React.FC = () => {
             socket.off("campaign:tokens:update", onTokUpdate);
             socket.off("campaign:tokens:tick", onTokTick);
             socket.off("campaign:lighting:update", onLighting);
+            socket.off("campaign:initiative:update", onInitiative);
+            socket.off("campaign:inventory:update", onInventory);
             try { socket.emit("campaign:leave", { campaignId: id }); } catch {}
             setJoined(false);
         };
-    }, [id, campaign, activeMapId]);
+    }, [id, campaign, activeMapId, myUserId]);
 
     // Autoscroll chat
     useEffect(() => {
@@ -1409,35 +1448,88 @@ const GamePage: React.FC = () => {
             </section>
 
             <aside className="game-right">
-                <div className="chat-header">Chat</div>
-                <div className="chat-log" ref={chatLogRef}>
-                    {messages.length === 0 && <div className="presence-empty">Noch keine Nachrichten.</div>}
-                    {messages.map((m) => (
-                        <div className="chat-msg" key={m._id}>
-                            <div className="head">
-                                <span className="who">
-                                    {m.username}
-                                    {ownerId && String(m.userId) === String(ownerId) && (
-                                        <span className="gm-tag" style={{ marginLeft: 6 }}>GM</span>
-                                    )}
-                                </span>
-                                <span className="time">{timeHHMM(m.createdAt)}</span>
-                            </div>
-                            <div className="body">{m.text}</div>
+                <div className="right-tabs" role="tablist">
+                    <button
+                        role="tab"
+                        className={`right-tab${rightTab === 'chat' ? ' active' : ''}`}
+                        onClick={() => setRightTab('chat')}
+                    >
+                        Chat
+                    </button>
+                    <button
+                        role="tab"
+                        className={`right-tab${rightTab === 'initiative' ? ' active' : ''}`}
+                        onClick={() => setRightTab('initiative')}
+                    >
+                        Initiative
+                        {initiative?.active && <span className="tab-dot" title="Kampf läuft" />}
+                    </button>
+                    <button
+                        role="tab"
+                        className={`right-tab${rightTab === 'inventory' ? ' active' : ''}`}
+                        onClick={() => setRightTab('inventory')}
+                    >
+                        Inventar
+                    </button>
+                </div>
+                {rightTab === 'chat' && (
+                    <>
+                        <div className="chat-log" ref={chatLogRef}>
+                            {messages.length === 0 && <div className="presence-empty">Noch keine Nachrichten.</div>}
+                            {messages.map((m) => (
+                                <div className="chat-msg" key={m._id}>
+                                    <div className="head">
+                                        <span className="who">
+                                            {m.username}
+                                            {ownerId && String(m.userId) === String(ownerId) && (
+                                                <span className="gm-tag" style={{ marginLeft: 6 }}>GM</span>
+                                            )}
+                                        </span>
+                                        <span className="time">{timeHHMM(m.createdAt)}</span>
+                                    </div>
+                                    <div className="body">{m.text}</div>
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                </div>
-                <div className="chat-input">
-                    <input
-                        ref={chatInputRef}
-                        type="text"
-                        placeholder="Nachricht &hellip;"
-                        onKeyDown={onChatKey}
-                        maxLength={2000}
-                    />
-                    <button onClick={sendChat} disabled={!joined}>Senden</button>
-                </div>
-                {isOwner && selection.size > 0 && (
+                        <div className="chat-input">
+                            <input
+                                ref={chatInputRef}
+                                type="text"
+                                placeholder="Nachricht &hellip;"
+                                onKeyDown={onChatKey}
+                                maxLength={2000}
+                            />
+                            <button onClick={sendChat} disabled={!joined}>Senden</button>
+                        </div>
+                    </>
+                )}
+                {rightTab === 'initiative' && id && (
+                    <div className="right-scroll">
+                        <InitiativePanel
+                            campaignId={id}
+                            isOwner={!!isOwner}
+                            ownerId={String(ownerId || '')}
+                            myUserId={myUserId}
+                            myCurrentCharId={myCurrentCharId}
+                            myCharacters={myCharacters}
+                            initiative={initiative}
+                        />
+                    </div>
+                )}
+                {rightTab === 'inventory' && id && (
+                    <div className="right-scroll">
+                        <InventoryPanel
+                            campaignId={id}
+                            isOwner={!!isOwner}
+                            ownerId={String(ownerId || '')}
+                            players={campaign.players}
+                            myUserId={myUserId}
+                            myInventory={myInventory}
+                            allInventories={allInventories}
+                        />
+                    </div>
+                )}
+                {rightTab === 'chat' && isOwner && selection.size > 0 && (
                     <div className="selected-ops">
                         <div className="group-title">Ausgewählt: {selection.size}</div>
                         {Array.from(selection).map((sid) => {

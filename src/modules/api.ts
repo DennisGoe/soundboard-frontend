@@ -239,10 +239,10 @@ const apiService = {
     listCharacters: async (): Promise<{ characters: CharacterDoc[] }> => {
         return handleRequest(api.get<{ characters: CharacterDoc[] }>('/api/characters'));
     },
-    createCharacter: async (body: { name: string }): Promise<{ character: CharacterDoc }> => {
+    createCharacter: async (body: { name: string; initiativeBonus?: number }): Promise<{ character: CharacterDoc }> => {
         return handleRequest(api.post<{ character: CharacterDoc }>('/api/characters', body));
     },
-    updateCharacter: async (id: string, body: { name: string }): Promise<{ character: CharacterDoc }> => {
+    updateCharacter: async (id: string, body: { name?: string; initiativeBonus?: number }): Promise<{ character: CharacterDoc }> => {
         return handleRequest(api.put<{ character: CharacterDoc }>(`/api/characters/${id}`, body));
     },
     deleteCharacter: async (id: string): Promise<{ msg: string }> => {
@@ -297,6 +297,23 @@ const apiService = {
             api.get<{ lighting: MapLighting }>(
                 `/api/campaigns/${campaignId}/maps/${mapId}/lighting`
             )
+        );
+    },
+
+    // ---------- Initiative + Inventar ----------
+    getInitiative: async (campaignId: string): Promise<{ initiative: Initiative }> => {
+        return handleRequest(
+            api.get<{ initiative: Initiative }>(`/api/campaigns/${campaignId}/initiative`)
+        );
+    },
+    getMyInventory: async (campaignId: string): Promise<{ inventory: InventoryDoc }> => {
+        return handleRequest(
+            api.get<{ inventory: InventoryDoc }>(`/api/campaigns/${campaignId}/inventory`)
+        );
+    },
+    getAllInventories: async (campaignId: string): Promise<{ inventories: InventoryDoc[] }> => {
+        return handleRequest(
+            api.get<{ inventories: InventoryDoc[] }>(`/api/campaigns/${campaignId}/inventories`)
         );
     },
 };
@@ -357,8 +374,42 @@ export interface CharacterDoc {
     owner: string;
     name: string;
     tokenUrl: string | null;
+    initiativeBonus?: number;
     createdAt?: string;
     updatedAt?: string;
+}
+
+export interface InitiativeEntry {
+    id: string;
+    userId: string | null;
+    characterId: string | null;
+    isNpc: boolean;
+    name: string;
+    tokenUrl: string | null;
+    roll: number | null;
+    bonus: number;
+    order: number;
+}
+
+export interface Initiative {
+    active: boolean;
+    round: number;
+    turnIndex: number;
+    entries: InitiativeEntry[];
+}
+
+export interface InventoryItem {
+    id: string;
+    name: string;
+    qty: number;
+    description: string;
+}
+
+export interface InventoryDoc {
+    userId: string;
+    username?: string;
+    notes: string;
+    items: InventoryItem[];
 }
 
 export interface CharacterSelection {
