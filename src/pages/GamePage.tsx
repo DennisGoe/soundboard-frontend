@@ -31,6 +31,31 @@ const LIGHT_PRESETS: { key: string; name: string; bright: number; dim: number; c
 
 interface PresenceUser { _id: string; username: string; }
 
+// --- DnD-Beyond-Sync-Types (nur hier verwendet; bewusst nicht in api.ts) ---
+interface DdbHp { current?: number; max?: number; temp?: number; }
+interface DdbItem { name: string; qty?: number; type?: string; equipped?: boolean; description?: string; }
+interface DdbCharState {
+    hp?: DdbHp;
+    ac?: number;
+    conditions?: string[];
+    inventory?: DdbItem[];
+    updatedAt?: string;
+}
+interface DdbDiceRoll {
+    label?: string;
+    formula?: string;
+    total: number;
+    rolls?: number[];
+    timestamp?: string;
+}
+interface DdbDiceToast {
+    key: string;
+    userId: string;
+    tokenId?: string;
+    roll: DdbDiceRoll;
+    receivedAt: number;
+}
+
 function colorFor(name: string): string {
     const palette = [
         "#9b2a1e", "#3d4a2a", "#3a4a6d", "#6d3a5a", "#5a3a2a",
@@ -127,7 +152,14 @@ const GamePage: React.FC = () => {
     const [initiative, setInitiative] = useState<Initiative | null>(null);
     const [myInventory, setMyInventory] = useState<InventoryDoc | null>(null);
     const [allInventories, setAllInventories] = useState<InventoryDoc[]>([]);
-    const [rightTab, setRightTab] = useState<'chat' | 'initiative' | 'inventory'>('chat');
+    const [rightTab, setRightTab] = useState<'chat' | 'initiative' | 'inventory' | 'ddb'>('chat');
+
+    // DnD-Beyond-Sync (extern reingedruecktes Char-State pro User).
+    // Ponytail: kein eigenes Mongo-Doc, nur Live via Socket vom BE gepusht.
+    // Overlay (HP-Balken, AC, Conditions) auf dem Token, Inventar + Wuerfe
+    // im DDB-Tab.
+    const [ddbStates, setDdbStates] = useState<Record<string, DdbCharState>>({});
+    const [diceToasts, setDiceToasts] = useState<DdbDiceToast[]>([]);
 
     // Initial-Load
     useEffect(() => {
@@ -164,6 +196,39 @@ const GamePage: React.FC = () => {
         })();
         return () => { cancelled = true; };
     }, [id]);
+
+    // Fallback: eigene User-Id aus presence ableiten, wenn der Initial-Load
+    // keine chars[0].owner liefern konnte (User hat 0 Charaktere). Vorher war
+    // dieser Side-Effect direkt in der render-Phase ("setTimeout(() =>
+    // setMyUserId(...), 0)") -> das setzte myUserId NACH dem ersten Presence-
+    // Render, was einen zusaetzlichen Re-Run des Socket-useEffects ausloeste und
+    // damit ein kurzes Join/Leave-Flap. Hier sauber als eigener Effect, der die
+    // Socket-Handler NICHT invalidiert (die lesen myUserIdRef).
+    useEffect(() => {
+        if (myUserId) return;
+        if (!myName || presence.length === 0) return;
+        const me = presence.find((u) => u.username === myName);
+        if (me) setMyUserId(me._id);
+    }, [presence, myName, myUserId]);
+
+    // Refs fuer activeMapId + myUserId, damit die Socket-Handler die aktuellen
+    // Werte lesen koennen, OHNE dass sich die Handler re-registrieren muessen.
+    // Hintergrund: vorher hing das Socket-useEffect an [id, campaign, activeMapId, myUserId].
+    // Jede Aenderung von activeMapId ODER myUserId triggerte Cleanup -> emit
+    // "campaign:leave" (= socket.leave(room) + removePresence) -> Setup -> emit
+    // "campaign:join". Zwischen leave und join war der Socket NICHT im Server-Raum,
+    // sodass gleichzeitige Broadcasts (z.B. presence-push wenn der zweite User
+    // beitritt oder tokens:update beim Drop) verloren gingen. Siehe room-watch
+    // Probe: drei presence-Broadcasts in 150 ms beim Mount (StrictMode + die
+    // Render-Seiten-Effekte unten) -> zwei leave/join-Wechsel -> Rennen.
+    const activeMapIdRef = useRef<string | null>(null);
+    useEffect(() => { activeMapIdRef.current = activeMapId; }, [activeMapId]);
+    const myUserIdRef = useRef<string | null>(null);
+    useEffect(() => { myUserIdRef.current = myUserId; }, [myUserId]);
+
+    // Ref auf ddbStates — lesen im Socket-Handler ohne Dep-Rerun.
+    const ddbStatesRef = useRef<Record<string, DdbCharState>>({});
+    useEffect(() => { ddbStatesRef.current = ddbStates; }, [ddbStates]);
 
     // Socket join + event handler
     useEffect(() => {
@@ -217,18 +282,18 @@ const GamePage: React.FC = () => {
         };
         const onTokUpdate = (p: { campaignId: string; mapId: string; tokens: TokenInstance[]; groups: TokenGroup[] }) => {
             if (p.campaignId !== id) return;
-            if (p.mapId !== activeMapId) return;
+            if (p.mapId !== activeMapIdRef.current) return;
             setTokens(p.tokens);
             setGroups(p.groups);
         };
         const onLighting = (p: { campaignId: string; mapId: string; lighting: MapLighting }) => {
             if (p.campaignId !== id) return;
-            if (p.mapId !== activeMapId) return;
+            if (p.mapId !== activeMapIdRef.current) return;
             setLighting(p.lighting);
         };
         const onTokTick = (p: { campaignId: string; mapId: string; updates: Array<{ id: string; x: number; y: number }> }) => {
             if (p.campaignId !== id) return;
-            if (p.mapId !== activeMapId) return;
+            if (p.mapId !== activeMapIdRef.current) return;
             setTokens((prev) => prev.map((t) => {
                 const u = p.updates.find((x) => x.id === t.id);
                 return u ? { ...t, x: u.x, y: u.y } : t;
@@ -241,8 +306,9 @@ const GamePage: React.FC = () => {
         };
         const onInventory = (p: { campaignId: string; inventory: InventoryDoc }) => {
             if (p.campaignId !== id) return;
+            const me = myUserIdRef.current;
             // Mein eigenes Inventar aktualisieren:
-            if (myUserId && p.inventory.userId === myUserId) {
+            if (me && p.inventory.userId === me) {
                 setMyInventory(p.inventory);
             }
             // Falls GM: Liste aller Inventare mitpflegen.
@@ -253,6 +319,45 @@ const GamePage: React.FC = () => {
                 next[idx] = { ...next[idx], ...p.inventory };
                 return next;
             });
+        };
+
+        // DnD-Beyond-Sync. Payload-Shape siehe BE routes/dndbeyondSync.js:
+        //   character:update  { campaignId, mapId, userId, tokenId, hp?, ac?, conditions?, inventory? }
+        //   character:diceroll { campaignId, userId, tokenId, roll:{label,formula,total,rolls,timestamp} }
+        const onCharacterUpdate = (p: {
+            campaignId: string; mapId?: string; userId: string; tokenId?: string;
+            hp?: DdbHp; ac?: number; conditions?: string[]; inventory?: DdbItem[];
+        }) => {
+            if (p.campaignId !== id) return;
+            setDdbStates((prev) => {
+                const cur = prev[p.userId] || {};
+                const next: DdbCharState = {
+                    ...cur,
+                    hp: p.hp !== undefined ? p.hp : cur.hp,
+                    ac: p.ac !== undefined ? p.ac : cur.ac,
+                    conditions: p.conditions !== undefined ? p.conditions : cur.conditions,
+                    inventory: p.inventory !== undefined ? p.inventory : cur.inventory,
+                    updatedAt: new Date().toISOString(),
+                };
+                return { ...prev, [p.userId]: next };
+            });
+        };
+        const onCharacterDiceRoll = (p: {
+            campaignId: string; userId: string; tokenId?: string; roll: DdbDiceRoll;
+        }) => {
+            if (p.campaignId !== id) return;
+            const toast: DdbDiceToast = {
+                key: `${p.userId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                userId: p.userId,
+                tokenId: p.tokenId,
+                roll: p.roll,
+                receivedAt: Date.now(),
+            };
+            setDiceToasts((prev) => [...prev, toast].slice(-6));
+            // Auto-Dismiss nach 8 s.
+            window.setTimeout(() => {
+                setDiceToasts((prev) => prev.filter((x) => x.key !== toast.key));
+            }, 8000);
         };
 
         socket.on("campaign:presence", onPresence);
@@ -266,6 +371,8 @@ const GamePage: React.FC = () => {
         socket.on("campaign:lighting:update", onLighting);
         socket.on("campaign:initiative:update", onInitiative);
         socket.on("campaign:inventory:update", onInventory);
+        socket.on("character:update", onCharacterUpdate);
+        socket.on("character:diceroll", onCharacterDiceRoll);
 
         return () => {
             socket.off("connect", join);
@@ -280,10 +387,19 @@ const GamePage: React.FC = () => {
             socket.off("campaign:lighting:update", onLighting);
             socket.off("campaign:initiative:update", onInitiative);
             socket.off("campaign:inventory:update", onInventory);
+            socket.off("character:update", onCharacterUpdate);
+            socket.off("character:diceroll", onCharacterDiceRoll);
             try { socket.emit("campaign:leave", { campaignId: id }); } catch {}
             setJoined(false);
         };
-    }, [id, campaign, activeMapId, myUserId]);
+        // WICHTIG: activeMapId/myUserId sind BEWUSST NICHT in den Deps — die
+        // Handler lesen sie via Ref. Das verhindert das Join/Leave-Flapping,
+        // das GM-Broadcasts verschluckte. campaign bleibt in den Deps, weil wir
+        // beim Guard oben pruefen (null -> keine Registrierung). onCharSel
+        // ruft setCampaign nach Char-Wechsel auf -> ein einmaliger Flap pro
+        // tatsaechlicher Char-Auswahl, OK.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id, campaign]);
 
     // Autoscroll chat
     useEffect(() => {
@@ -493,9 +609,10 @@ const GamePage: React.FC = () => {
     }, [activeEditorDoc, editorTick]);
 
     const onEditorPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-        // Runde 4a: GM linksziehen ohne Modifier = Auswahlrahmen.
+        // Runde 4a/4b: Linksziehen ohne Modifier = Auswahlrahmen (fuer GM UND Spieler).
+        // Pan weiterhin: Space+Links / Mittel / Rechts.
         const wantPan = e.button === 1 || e.button === 2 || spacePressedRef.current;
-        if (isOwner && !wantPan && e.button === 0 && editorWrapRef.current) {
+        if (!wantPan && e.button === 0 && editorWrapRef.current) {
             startSelectionRect(e.clientX, e.clientY, editorWrapRef.current);
             return;
         }
@@ -538,10 +655,10 @@ const GamePage: React.FC = () => {
     };
 
     const onMouseDown = (e: React.MouseEvent) => {
-        // Runde 4a: GM bekommt den Auswahlrahmen beim Linksziehen ohne Modifier.
-        // Pan = Space+Links ODER Mittel/Rechts. Spieler panen weiterhin per Linksziehen.
+        // Runde 4a/4b: Linksziehen ohne Modifier = Auswahlrahmen (fuer GM UND Spieler).
+        // Pan = Space+Links ODER Mittel/Rechts.
         const wantPan = e.button === 1 || e.button === 2 || spacePressedRef.current;
-        if (isOwner && !wantPan && e.button === 0 && imageWrapRef.current) {
+        if (!wantPan && e.button === 0 && imageWrapRef.current) {
             startSelectionRect(e.clientX, e.clientY, imageWrapRef.current);
             return;
         }
@@ -687,8 +804,18 @@ const GamePage: React.FC = () => {
         startField: { fx: number; fy: number };
         tokenIds: string[]; // alle Tokens die mit mir mitziehen (Gruppe)
         originals: Map<string, { x: number; y: number }>;
+        // Runde 4f: Anker-ID fuer das Drag-Lineal. Das gegriffene Token ist die
+        // Referenz fuer Start- und Endpunkt der Entfernungs-Anzeige. Bei Gruppen-
+        // Drag ist das Delta fuer alle gleich -> ein Lineal reicht.
+        grabbedId: string;
     } | null>(null);
     const [draggingIds, setDraggingIds] = useState<string[]>([]);
+    // Runde 4d: Ghost-Preview beim Draggen. Das echte Token bleibt waehrend des
+    // Drags unveraendert an der Ausgangsposition; `dragGhosts` haelt pro Token
+    // die gesnappte ZIEL-Tile. Erst bei Drop springt das Original an die
+    // Ghost-Position (bzw. zurueck, wenn der Server ablehnt).
+    const [dragGhosts, setDragGhosts] = useState<Map<string, { x: number; y: number }>>(new Map());
+    const dragGhostsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
 
     const canMoveToken = (t: TokenInstance): boolean => {
         if (!myUserId) return false;
@@ -706,9 +833,11 @@ const GamePage: React.FC = () => {
     };
 
     const tokenGroupIds = (t: TokenInstance): string[] => {
-        // Runde 4a: GM mit >=2 selektierten Tokens -> alle selektierten bewegen sich.
-        // Spieler-Gruppen bleiben wie gehabt (persistente Server-Gruppen).
-        if (isOwner && selectionRef.current.has(t.id) && selectionRef.current.size >= 2) {
+        // Runde 4a/4b: Jeder (GM UND Spieler) mit >=2 selektierten Tokens -> alle selektierten
+        // bewegen sich mit. Der Spieler kann aber ohnehin nur eigene Tokens selektieren
+        // (Filter via canMoveToken beim Finalize des Auswahlrahmens), und
+        // startTokenDrag/Server-Rejects schuetzen zusaetzlich pro Token.
+        if (selectionRef.current.has(t.id) && selectionRef.current.size >= 2) {
             return Array.from(selectionRef.current);
         }
         if (!t.groupId) return [t.id];
@@ -723,6 +852,10 @@ const GamePage: React.FC = () => {
     tokensRef.current = tokens;
     const viewTransformRef = useRef<ViewTransform | null>(null);
     viewTransformRef.current = viewTransform;
+    // Runde 4b: canMoveToken als Ref, damit Finalize-Filter im stabilen useCallback
+    // immer die aktuelle Rechte-Pruefung nutzt (keine Logik-Duplikation).
+    const canMoveTokenRef = useRef<(t: TokenInstance) => boolean>(() => false);
+    canMoveTokenRef.current = canMoveToken;
     const throttleRef = useRef<number>(0);
 
     const startTokenDrag = (e: React.PointerEvent | React.MouseEvent, t: TokenInstance) => {
@@ -740,6 +873,7 @@ const GamePage: React.FC = () => {
         dragTokenRef.current = {
             pointerId: (e as any).pointerId || 0,
             startField: { fx, fy }, tokenIds: ids, originals,
+            grabbedId: t.id,
         };
         setDraggingIds(ids);
 
@@ -749,32 +883,53 @@ const GamePage: React.FC = () => {
             const { fx: cx, fy: cy } = screenToField(viewTransformRef.current, ev.clientX, ev.clientY);
             const dx = cx - st.startField.fx;
             const dy = cy - st.startField.fy;
-            const snap = !ev.altKey;
-            const updates: Array<{ id: string; x: number; y: number }> = [];
-            setTokens((prev) => prev.map((tok) => {
-                if (!st.tokenIds.includes(tok.id)) return tok;
-                const o = st.originals.get(tok.id)!;
-                let nx = o.x + dx, ny = o.y + dy;
-                if (snap) { nx = Math.round(nx * 2) / 2; ny = Math.round(ny * 2) / 2; }
-                updates.push({ id: tok.id, x: nx, y: ny });
-                return { ...tok, x: nx, y: ny };
-            }));
-            const now = performance.now();
-            if (now - throttleRef.current > 66) {
-                throttleRef.current = now;
-                const socket = getSocket();
-                socket.emit("campaign:tokens:move", { campaignId: id, mapId: activeMapId, updates });
+            // Runde 4d: ECHTE Ghost-Preview. Das Original-Token bleibt sichtbar an
+            // seiner Ausgangsposition — wir mutieren nicht mehr setTokens — sondern
+            // schreiben pro Token die gesnappte Zielposition in dragGhosts.
+            // Runde 4e: Ghost ist REIN LOKAL. Kein `campaign:tokens:move`-Emit mehr —
+            // andere Spieler + GM sehen waehrend des Drags gar nichts. Erst der Drop
+            // (campaign:tokens:drop) verteilt die finale Position autoritativ.
+            const nextGhosts = new Map<string, { x: number; y: number }>();
+            for (const tid of st.tokenIds) {
+                const o = st.originals.get(tid);
+                if (!o) continue;
+                const nx = Math.round(o.x + dx);
+                const ny = Math.round(o.y + dy);
+                nextGhosts.set(tid, { x: nx, y: ny });
             }
+            dragGhostsRef.current = nextGhosts;
+            setDragGhosts(nextGhosts);
         };        const onUp = () => {
             const st = dragTokenRef.current;
             document.removeEventListener("mousemove", onMove, true);
             document.removeEventListener("mouseup", onUp, true);
-            if (!st || !id || !activeMapId) { dragTokenRef.current = null; setDraggingIds([]); return; }
+            if (!st || !id || !activeMapId) {
+                dragTokenRef.current = null;
+                setDraggingIds([]);
+                dragGhostsRef.current = new Map();
+                setDragGhosts(new Map());
+                return;
+            }
+            // Runde 4d: Endposition ist die Ghost-Position (gesnappte Ziel-Tile) —
+            // NICHT mehr tokensRef, weil das Original waehrend des Drags nicht mehr
+            // mitbewegt wird. Fallback auf originals, falls z.B. onMove gar nicht
+            // gefeuert hat (reiner Klick ohne Bewegung).
             const updates: Array<{ id: string; x: number; y: number }> = [];
             for (const tid of st.tokenIds) {
-                const cur = tokensRef.current.find((x) => x.id === tid);
-                if (cur) updates.push({ id: tid, x: cur.x, y: cur.y });
+                const g = dragGhostsRef.current.get(tid);
+                const pos = g || st.originals.get(tid);
+                if (pos) updates.push({ id: tid, x: pos.x, y: pos.y });
             }
+            // Optimistisch: Original springt sofort auf die Ziel-Tile — damit der
+            // Ghost nicht weiter leuchtet, nachdem das Token am Ziel liegt.
+            if (updates.length > 0) {
+                setTokens((prev) => prev.map((tok) => {
+                    const u = updates.find((x) => x.id === tok.id);
+                    return u ? { ...tok, x: u.x, y: u.y } : tok;
+                }));
+            }
+            dragGhostsRef.current = new Map();
+            setDragGhosts(new Map());
             const socket = getSocket();
             socket.emit("campaign:tokens:drop", { campaignId: id, mapId: activeMapId, updates }, (ack: any) => {
                 // Runde 4a: Zug abgelehnt (Kollision) -> alle am Drag beteiligten
@@ -952,7 +1107,10 @@ const GamePage: React.FC = () => {
                     const ccy = t.y + (t.size || 1) / 2;
                     return ccx >= preview.x && ccx <= preview.x + preview.w &&
                            ccy >= preview.y && ccy <= preview.y + preview.h;
-                });
+                }).filter((t) => canMoveTokenRef.current(t));
+                // Runde 4b: Spieler sieht/zieht den Rahmen auch, selektiert aber
+                // ausschliesslich Tokens, die er auch steuern darf. isOwner -> alle
+                // (canMoveToken liefert immer true fuer den DM).
                 setSelection(new Set(inside.map((t) => t.id)));
                 return null;
             });
@@ -1218,8 +1376,132 @@ const GamePage: React.FC = () => {
         }
     }, [polyPoints, sendFogOps]);
 
-    // Runde 4a: Overlay fuer GM-Auswahlrahmen + Reject-Hinweis.
-    const selectionRectOverlay = (isOwner && selRectPreview && viewTransform) ? (() => {
+    // Runde 4d: Ghost-Preview-Ebene — halbtransparentes, gestricheltes Element
+    // pro gezogenem Token an der Ziel-Tile. Wird genau wie selectionRectOverlay
+    // in beide Karten-Branches eingehaengt. pointerEvents:none, z-index 9 (ueber
+    // Tokens, damit es bei Gruppen-Drag auch ueber den stillgelegten Originalen
+    // liegt, aber unter rejectHintOverlay).
+    const dragGhostOverlay = (dragGhosts.size > 0 && viewTransform) ? (
+        <div
+            className="token-ghost-layer"
+            style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9 }}
+        >
+            {Array.from(dragGhosts.entries()).map(([tid, g]) => {
+                const t = tokensRef.current.find((x) => x.id === tid);
+                if (!t) return null;
+                const vt = viewTransform;
+                const { sx, sy } = fieldToScreen(vt, g.x + 0.5, g.y + 0.5);
+                const fieldPx = vt.baseFieldPx * vt.scale;
+                const sizePx = fieldPx * 0.85;
+                const chars = campaign?.characters || [];
+                const char = t.characterId ? chars.find((c) => c._id === t.characterId) : null;
+                let bg = t.color || '#9b2a1e';
+                let letterText = '?';
+                if (char) {
+                    bg = colorFor(char.name);
+                    letterText = initials(char.name);
+                } else if (t.ownerUserId) {
+                    const uname = usernameById.get(String(t.ownerUserId)) || t.label || '';
+                    if (uname) {
+                        bg = colorFor(uname);
+                        letterText = initials(uname);
+                    } else if (t.label) {
+                        letterText = initials(t.label);
+                    }
+                } else if (t.label) {
+                    letterText = initials(t.label);
+                }
+                return (
+                    <div
+                        key={tid}
+                        className="token-ghost"
+                        style={{
+                            position: 'absolute',
+                            left: sx - sizePx / 2,
+                            top: sy - sizePx / 2,
+                            width: sizePx,
+                            height: sizePx,
+                            borderColor: bg,
+                            background: bg,
+                        }}
+                    >
+                        {char?.tokenUrl ? (
+                            <img src={char.tokenUrl} alt="" draggable={false} />
+                        ) : (
+                            <div className="letter" style={{ background: bg }}>{letterText}</div>
+                        )}
+                    </div>
+                );
+            })}
+            {/* Runde 4f: Drag-Lineal — REIN LOKAL (Teil des dragGhostOverlay, das nur
+                der ziehende Spieler rendert). Linie vom gegriffenen Original-Token
+                zum Ghost + Fuss-Label (D&D 5e Chebyshev: 1 Feld = 5 ft,
+                Diagonalfeld = 1 Feld, keine Kommawerte). */}
+            {(() => {
+                const st = dragTokenRef.current;
+                if (!st) return null;
+                const o = st.originals.get(st.grabbedId);
+                const g = dragGhosts.get(st.grabbedId);
+                if (!o || !g) return null;
+                if (o.x === g.x && o.y === g.y) return null;
+                const tiles = Math.max(Math.abs(g.x - o.x), Math.abs(g.y - o.y));
+                const feet = tiles * 5;
+                const vt = viewTransform;
+                const a = fieldToScreen(vt, o.x + 0.5, o.y + 0.5);
+                const b = fieldToScreen(vt, g.x + 0.5, g.y + 0.5);
+                const mx = (a.sx + b.sx) / 2;
+                const my = (a.sy + b.sy) / 2;
+                return (
+                    <>
+                        <svg
+                            className="drag-ruler-svg"
+                            style={{
+                                position: 'absolute',
+                                left: 0, top: 0,
+                                width: '100%', height: '100%',
+                                pointerEvents: 'none',
+                                overflow: 'visible',
+                            }}
+                        >
+                            {/* dunkler Umriss fuer Lesbarkeit ueber Tag UND Nacht */}
+                            <line
+                                x1={a.sx} y1={a.sy} x2={b.sx} y2={b.sy}
+                                stroke="rgba(0,0,0,0.78)"
+                                strokeWidth={6}
+                                strokeLinecap="round"
+                            />
+                            {/* helle, gestrichelte Fuehrungslinie */}
+                            <line
+                                x1={a.sx} y1={a.sy} x2={b.sx} y2={b.sy}
+                                stroke="#fff4c2"
+                                strokeWidth={2.5}
+                                strokeDasharray="8 5"
+                                strokeLinecap="round"
+                            />
+                            {/* Endpunkte markieren — klein + heller Punkt mit dunklem Rand */}
+                            <circle cx={a.sx} cy={a.sy} r={4}
+                                fill="#fff4c2" stroke="rgba(0,0,0,0.78)" strokeWidth={1.5} />
+                            <circle cx={b.sx} cy={b.sy} r={4}
+                                fill="#fff4c2" stroke="rgba(0,0,0,0.78)" strokeWidth={1.5} />
+                        </svg>
+                        <div
+                            className="drag-ruler-label"
+                            style={{
+                                position: 'absolute',
+                                left: mx,
+                                top: my,
+                                transform: 'translate(-50%, -140%)',
+                                pointerEvents: 'none',
+                            }}
+                        >{feet} ft</div>
+                    </>
+                );
+            })()}
+        </div>
+    ) : null;
+
+    // Runde 4a/4b: Overlay fuer Auswahlrahmen (GM UND Spieler) + Reject-Hinweis.
+    const selectionRectOverlay = (selRectPreview && viewTransform) ? (() => {
         const a = fieldToScreen(viewTransform, selRectPreview.x, selRectPreview.y);
         const b = fieldToScreen(viewTransform, selRectPreview.x + selRectPreview.w, selRectPreview.y + selRectPreview.h);
         return (
@@ -1587,6 +1869,7 @@ const GamePage: React.FC = () => {
                                 onSelectToken={(t, ev) => toggleSelect(t.id, ev.shiftKey)}
                                 characters={campaign.characters}
                                 usernameById={usernameById}
+                                ddbStates={ddbStates}
                             />
                         )}
                         {viewTransform && lighting && worldDims && (
@@ -1620,11 +1903,13 @@ const GamePage: React.FC = () => {
                                 onSelectToken={(t, ev) => toggleSelect(t.id, ev.shiftKey)}
                                 characters={campaign.characters}
                                 usernameById={usernameById}
+                                ddbStates={ddbStates}
                                 ownOnly
                             />
                         )}
                         {fogToolOverlay}
                         {selectionRectOverlay}
+                        {dragGhostOverlay}
                         {rejectHintOverlay}
                         <div className="game-zoom">
                             <button onClick={() => bumpZoom(-1)} title="Verkleinern">&minus;</button>
@@ -1691,6 +1976,7 @@ const GamePage: React.FC = () => {
                                         onSelectToken={(t, ev) => toggleSelect(t.id, ev.shiftKey)}
                                         characters={campaign.characters}
                                         usernameById={usernameById}
+                                ddbStates={ddbStates}
                                     />
                                 )}
                                 {viewTransform && lighting && worldDims && (
@@ -1723,11 +2009,13 @@ const GamePage: React.FC = () => {
                                         onSelectToken={(t, ev) => toggleSelect(t.id, ev.shiftKey)}
                                         characters={campaign.characters}
                                         usernameById={usernameById}
+                                ddbStates={ddbStates}
                                         ownOnly
                                     />
                                 )}
                                 {fogToolOverlay}
                         {selectionRectOverlay}
+                        {dragGhostOverlay}
                         {rejectHintOverlay}
                             </>
                         )}
@@ -1766,25 +2054,52 @@ const GamePage: React.FC = () => {
                     >
                         Inventar
                     </button>
+                    <button
+                        role="tab"
+                        className={`right-tab${rightTab === 'ddb' ? ' active' : ''}`}
+                        onClick={() => setRightTab('ddb')}
+                        title="DnD-Beyond-Sync (Chrome-Extension)"
+                    >
+                        DDB
+                        {Object.keys(ddbStates).length > 0 && <span className="tab-dot" title="Live-Daten" />}
+                    </button>
                 </div>
                 {rightTab === 'chat' && (
                     <>
                         <div className="chat-log" ref={chatLogRef}>
                             {messages.length === 0 && <div className="presence-empty">Noch keine Nachrichten.</div>}
-                            {messages.map((m) => (
-                                <div className="chat-msg" key={m._id}>
-                                    <div className="head">
-                                        <span className="who">
-                                            {m.username}
-                                            {ownerId && String(m.userId) === String(ownerId) && (
-                                                <span className="gm-tag" style={{ marginLeft: 6 }}>GM</span>
-                                            )}
-                                        </span>
-                                        <span className="time">{timeHHMM(m.createdAt)}</span>
+                            {messages.map((m) => {
+                                const isDice = m.kind === 'dice' && m.dice && Number.isFinite(m.dice.total);
+                                return (
+                                    <div
+                                        className={isDice ? 'chat-msg dice' : 'chat-msg'}
+                                        key={m._id}
+                                    >
+                                        <div className="head">
+                                            <span className="who">
+                                                {isDice ? '🎲 ' : ''}{m.username}
+                                                {ownerId && String(m.userId) === String(ownerId) && (
+                                                    <span className="gm-tag" style={{ marginLeft: 6 }}>GM</span>
+                                                )}
+                                            </span>
+                                            <span className="time">{timeHHMM(m.createdAt)}</span>
+                                        </div>
+                                        {isDice && m.dice ? (
+                                            <div className="dice-body">
+                                                {m.dice.label && (
+                                                    <div className="dice-label">{m.dice.label}</div>
+                                                )}
+                                                {m.dice.formula && (
+                                                    <div className="dice-formula">{m.dice.formula}</div>
+                                                )}
+                                                <div className="dice-total">{m.dice.total}</div>
+                                            </div>
+                                        ) : (
+                                            <div className="body">{m.text}</div>
+                                        )}
                                     </div>
-                                    <div className="body">{m.text}</div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                         <div className="chat-input">
                             <input
@@ -1824,6 +2139,16 @@ const GamePage: React.FC = () => {
                         />
                     </div>
                 )}
+                {rightTab === 'ddb' && (
+                    <div className="right-scroll">
+                        <DdbPanel
+                            ddbStates={ddbStates}
+                            presence={presence}
+                            charactersByUser={charByUser}
+                            diceToasts={diceToasts}
+                        />
+                    </div>
+                )}
                 {rightTab === 'chat' && isOwner && selection.size > 0 && (
                     <div className="selected-ops">
                         <div className="group-title">Ausgewählt: {selection.size}</div>
@@ -1844,6 +2169,27 @@ const GamePage: React.FC = () => {
                 )}
             </aside>
 
+            {/* DnD-Beyond: Wuerfel-Toasts (auto-dismiss nach 8 s). */}
+            {diceToasts.length > 0 && (
+                <div className="ddb-dice-toasts" aria-live="polite">
+                    {diceToasts.map((d) => {
+                        const uname = usernameById.get(d.userId) || charByUser.get(d.userId)?.name || "Spieler";
+                        const label = d.roll.label || d.roll.formula || "Wurf";
+                        const signed = d.roll.rolls && d.roll.rolls.length > 0
+                            ? d.roll.rolls.join(" + ")
+                            : "";
+                        return (
+                            <div className="ddb-dice-toast" key={d.key}>
+                                <div className="who">🎲 {uname}</div>
+                                <div className="what">{label}</div>
+                                <div className="total">{d.roll.total}</div>
+                                {signed && <div className="detail">{signed}</div>}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
             <div className="game-bottom">
                 {presence.length === 0 ? (
                     <div className="presence-empty">Niemand im Raum.</div>
@@ -1851,10 +2197,10 @@ const GamePage: React.FC = () => {
                     presence.map((u) => {
                         const isGm = ownerId && String(u._id) === String(ownerId);
                         const isMe = myName && u.username === myName;
-                        // User-Id aus presence beim ersten Matchen festhalten
-                        if (!myUserId && isMe) {
-                            setTimeout(() => setMyUserId(u._id), 0);
-                        }
+                        // (Runde 4m) Seiten-Effekt "setMyUserId beim ersten Matchen"
+                        // ist raus aus der render-Phase. Macht jetzt ein eigenes
+                        // useEffect oben — das triggert die Socket-Handler NICHT
+                        // mehr zur Re-Registrierung.
                         const char = charByUser.get(u._id);
                         return (
                             <div key={u._id} className={`presence-item${isMe ? " me" : ""}`}>
@@ -1952,12 +2298,14 @@ interface TokenLayerProps {
     // Darkness-Overlay) und "eigen" (ueber dem Overlay). ownOnly=true rendert nur
     // Tokens, die dem aktuellen User gehoeren — mit hoeherem z-index (CSS).
     ownOnly?: boolean;
+    // DnD-Beyond-State pro userId (HP/AC/Conditions). Optional, Default leer.
+    ddbStates?: Record<string, DdbCharState>;
 }
 
 const TokenLayer: React.FC<TokenLayerProps> = ({
     tokens, groups, vt, isOwner, myUserId, selection, draggingIds,
     onPointerDownToken, onPointerMoveToken, onPointerUpToken, onSelectToken, characters,
-    usernameById, ownOnly = false,
+    usernameById, ownOnly = false, ddbStates = {},
 }) => {
     // Liste filtern.
     const shown = tokens.filter((t) => {
@@ -2004,6 +2352,15 @@ const TokenLayer: React.FC<TokenLayerProps> = ({
                     }
                 }
 
+                // DnD-Beyond-Overlay: HP-Balken unten, AC-Badge oben-rechts,
+                // Conditions-Punkte oben-links. Nur bei Spieler-Tokens (ownerUserId gesetzt).
+                const ddb = t.ownerUserId ? ddbStates[String(t.ownerUserId)] : undefined;
+                const hp = ddb?.hp;
+                const hpPct = (hp && typeof hp.current === "number" && typeof hp.max === "number" && hp.max > 0)
+                    ? Math.max(0, Math.min(1, hp.current / hp.max))
+                    : null;
+                const hpClass = hpPct === null ? "" : hpPct > 0.5 ? "ok" : hpPct > 0.2 ? "warn" : "crit";
+
                 return (
                     <div
                         key={t.id}
@@ -2030,7 +2387,7 @@ const TokenLayer: React.FC<TokenLayerProps> = ({
                             onSelectToken(t, ev);
                             if (canMove) onPointerDownToken(ev, t);
                         }}
-                        title={displayName}
+                        title={displayName + (hp ? ` · HP ${hp.current ?? "?"}/${hp.max ?? "?"}${hp.temp ? ` (+${hp.temp})` : ""}` : "") + (ddb?.ac ? ` · AC ${ddb.ac}` : "")}
                     >
                         {char?.tokenUrl ? (
                             <img src={char.tokenUrl} alt={char.name} draggable={false} />
@@ -2040,6 +2397,30 @@ const TokenLayer: React.FC<TokenLayerProps> = ({
                             </div>
                         )}
                         {t.locked && <div className="lock-badge" title="Gesperrt">🔒</div>}
+                        {typeof ddb?.ac === "number" && (
+                            <div className="ddb-ac-badge" title={`AC ${ddb.ac}`}>{ddb.ac}</div>
+                        )}
+                        {hp && (hpPct !== null || hp.current !== undefined) && (
+                            <div className="ddb-hp-wrap">
+                                {hpPct !== null && (
+                                    <div className={`ddb-hp-bar ${hpClass}`}>
+                                        <div className="fill" style={{ width: `${Math.round(hpPct * 100)}%` }} />
+                                    </div>
+                                )}
+                                <div className="ddb-hp-text">
+                                    {hp.current ?? "?"}
+                                    {hp.max !== undefined ? `/${hp.max}` : ""}
+                                    {hp.temp ? ` +${hp.temp}` : ""}
+                                </div>
+                            </div>
+                        )}
+                        {ddb?.conditions && ddb.conditions.length > 0 && (
+                            <div className="ddb-cond-row" title={ddb.conditions.join(", ")}>
+                                {ddb.conditions.slice(0, 6).map((c, i) => (
+                                    <span key={i} className="ddb-cond-dot" title={c}>{c.slice(0, 1).toUpperCase()}</span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 );
             })}
@@ -2097,6 +2478,117 @@ const GridSettings: React.FC<GridSettingsProps> = ({ grid, suggested, imgW, onCh
                     Karte ist N Felder breit
                 </button>
             </div>
+        </div>
+    );
+};
+
+// ---------- DnD-Beyond-Panel (rechte Sidebar) ----------
+// Zeigt pro User das letzte externe State-Snapshot + Inventar + Wuerfel-Feed.
+// Collapsible: Default alle zu, Klick oeffnet.
+
+interface DdbPanelProps {
+    ddbStates: Record<string, DdbCharState>;
+    presence: PresenceUser[];
+    charactersByUser: Map<string, CharacterDoc>;
+    diceToasts: DdbDiceToast[];
+}
+const DdbPanel: React.FC<DdbPanelProps> = ({ ddbStates, presence, charactersByUser, diceToasts }) => {
+    const [openUser, setOpenUser] = useState<string | null>(null);
+    const userIds = Object.keys(ddbStates);
+    const usersWithState = userIds.map((uid) => {
+        const pres = presence.find((p) => p._id === uid);
+        const char = charactersByUser.get(uid);
+        return {
+            userId: uid,
+            name: char?.name || pres?.username || uid.slice(0, 6),
+            tokenUrl: char?.tokenUrl || null,
+            state: ddbStates[uid],
+        };
+    });
+
+    return (
+        <div className="ddb-panel">
+            <div className="group-title">DnD Beyond — Live</div>
+            {usersWithState.length === 0 && (
+                <div className="presence-empty">
+                    Noch keine Live-Daten.<br />
+                    Spieler öffnen ihren Charakter auf dndbeyond.com mit installierter Soundboard-Extension.
+                </div>
+            )}
+            {usersWithState.map((u) => {
+                const open = openUser === u.userId;
+                const hp = u.state.hp;
+                return (
+                    <div key={u.userId} className={`ddb-user${open ? " open" : ""}`}>
+                        <button
+                            className="ddb-user-head"
+                            onClick={() => setOpenUser(open ? null : u.userId)}
+                            title={u.state.updatedAt ? `zuletzt ${u.state.updatedAt}` : ""}
+                        >
+                            <span className="name">{u.name}</span>
+                            <span className="chips">
+                                {hp && (
+                                    <span className="chip hp">
+                                        HP {hp.current ?? "?"}
+                                        {hp.max !== undefined ? `/${hp.max}` : ""}
+                                        {hp.temp ? ` +${hp.temp}` : ""}
+                                    </span>
+                                )}
+                                {typeof u.state.ac === "number" && <span className="chip ac">AC {u.state.ac}</span>}
+                                {u.state.conditions && u.state.conditions.length > 0 && (
+                                    <span className="chip cond">{u.state.conditions.length}×</span>
+                                )}
+                            </span>
+                            <span className="chev">{open ? "▾" : "▸"}</span>
+                        </button>
+                        {open && (
+                            <div className="ddb-user-body">
+                                {u.state.conditions && u.state.conditions.length > 0 && (
+                                    <div className="ddb-cond-list">
+                                        {u.state.conditions.map((c, i) => (
+                                            <span className="ddb-cond-chip" key={i}>{c}</span>
+                                        ))}
+                                    </div>
+                                )}
+                                <div className="group-title">Inventar</div>
+                                {!u.state.inventory || u.state.inventory.length === 0 ? (
+                                    <div className="presence-empty">Kein Inventar übertragen.</div>
+                                ) : (
+                                    <ul className="ddb-inv-list">
+                                        {u.state.inventory.map((it, i) => (
+                                            <li key={i} className={it.equipped ? "eq" : ""}>
+                                                <span className="qty">{it.qty ?? 1}×</span>
+                                                <span className="name">{it.name}</span>
+                                                {it.type && <span className="type">{it.type}</span>}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+
+            <div className="group-title" style={{ marginTop: 14 }}>Letzte Würfe</div>
+            {diceToasts.length === 0 ? (
+                <div className="presence-empty">Noch keine Würfe.</div>
+            ) : (
+                <ul className="ddb-dice-list">
+                    {diceToasts.slice().reverse().map((d) => {
+                        const char = charactersByUser.get(d.userId);
+                        const pres = presence.find((p) => p._id === d.userId);
+                        const name = char?.name || pres?.username || "Spieler";
+                        return (
+                            <li key={d.key}>
+                                <span className="who">{name}</span>
+                                <span className="what">{d.roll.label || d.roll.formula || "Wurf"}</span>
+                                <span className="total">{d.roll.total}</span>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
         </div>
     );
 };

@@ -492,6 +492,15 @@ export interface ChatMessage {
     text: string;
     createdAt: string;
     campaignId?: string;
+    // Optional: strukturierte Dice-Chat-Nachricht (von DnD-Beyond-Sync).
+    // Alte Clients ignorieren das Feld; neuer Renderer zeigt den Wurfblock.
+    kind?: 'text' | 'dice';
+    dice?: {
+        label: string;
+        formula: string;
+        total: number;
+        rolls?: number[];
+    };
 }
 
 export interface UserAssetDoc {
